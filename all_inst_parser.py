@@ -1,5 +1,3 @@
-### TODO: CHANGE SCRIPT TO CREATE SITE AND INSTRUMENT BEFORE LOOPING THROUGH DATES
-
 import urllib
 from datetime import date, timedelta, datetime
 from dateutil.rrule import rrule, DAILY
@@ -8,10 +6,7 @@ from tapipy.tapis import Tapis
 import logging
 from logging import FileHandler
 
-
-
 # Add argument parser
-
 parser = argparse.ArgumentParser(
     prog="all_inst_parser.py",
     description=""
