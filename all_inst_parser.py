@@ -13,16 +13,11 @@ from logging import FileHandler
 # Add argument parser
 
 parser = argparse.ArgumentParser(
-    prog="parser.py",
+    prog="all_inst_parser.py",
     description=""
 )
 
-parser.add_argument("instrument_id")
-parser.add_argument("-u", "--username")
-parser.add_argument("-p", "--password")
-parser.add_argument("-t", "--token")
 parser.add_argument("-d", "--debug", action="store_true", help="turn on debug mode")
-### TODO: add a verbose argument
 
 args = parser.parse_args()
 
@@ -37,40 +32,27 @@ else:
 
 file_handler = FileHandler('parser.log')
 
+
 logging.basicConfig(level=level,
                     format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
                     handlers=[file_handler])
 
-if args.username and args.password:
-    permitted_username = args.username
-    permitted_user_password = args.password
+logger = logging.getLogger()
 
-    try:
-        # #Create python Tapis client for user
-        permitted_client = Tapis(base_url= base_url, 
-                                username=permitted_username,
-                                password=permitted_user_password, 
-                                account_type='user', 
-                                tenant_id=tenant
-                                )
+permitted_username = "testuser2"
+permitted_user_password = "testuser2"
+        
+# #Create python Tapis client for user
+permitted_client = Tapis(base_url= base_url, 
+                        username=permitted_username,
+                        password=permitted_user_password, 
+                        account_type='user', 
+                        tenant_id=tenant
+                        )
 
-        #Generate an Access Token that will be used for all API calls
-        permitted_client.get_tokens()
-    except Exception as e:
-        print("Error: ", e.message)
-elif args.token:
-    #Create python Tapis client for user
-    try:
-        permitted_client = Tapis(base_url= base_url, 
-                                jwt=args.token, 
-                                account_type='user', 
-                                tenant_id=tenant
-                                )
-    except Exception as e:
-        print("Error: ", e.message)
-else:
-    print("Error: Either --username and --password or --token must be provided.")
+#Generate an Access Token that will be used for all API calls
+permitted_client.get_tokens()
 
 project_id = 'Mesonet' + str(datetime.today().isoformat())
 
@@ -83,139 +65,114 @@ result, debug = permitted_client.streams.create_project(project_name=project_id,
 logger.debug(result)
 # logger.debug(debug)
 
-start_date = date(2023, 1, 16)
-end_date = datetime.today().date()
+inst_to_file = {
+    '0115': '0115_Piiholo_MetData.dat',
+    '0116': '0116_Keokea_MetData.dat',
+    '0119': '0119_KulaAg_MetData.dat',
+    '0143': '0143_Nakula_MetData.dat',
+    '0151': '0151_ParkHQ_MetData.dat',
+    '0152': '0152_NeneNest_MetData.dat',
+    '0153': '0153_Summit_MetData.dat',
+    '0281': '0281_IPIF_MetData.dat',
+    '0282': '0282_Spencer_MetData.dat',
+    '0283': '0283_Laupahoehoe_MetData.dat',
+    '0286': '0286_Palamanui_MetData.dat',
+    '0287': '0287_Mamalahoa_MetData.dat',
+    '0501': '0501_Lyon_MetData_5min.dat',
+    '0502': '0502_NuuanuRes1_MetData.dat',
+    '0601': '0601_Waipa_MetData.dat',
+    '0602': '0602_CommonGround_MetData.dat'
+}
 
-for dt in rrule(DAILY, dtstart=start_date, until=end_date):
-    curr_date = dt.date()
+# Creating cache file to store instrument_id
+cache_file = open("inst_cache.txt", "w")
 
-#     # Add a mapping of instrumentID to filename
-#     # Maybe an array of files?
-    inst_to_file = {
-        '0115': '0115_Piiholo_MetData.dat',
-        '0116': '0116_Keokea_MetData.dat',
-        '0119': '0119_KulaAg_MetData.dat',
-        '0143': '0143_Nakula_MetData.dat',
-        '0151': '0151_ParkHQ_MetData.dat',
-        '0152': '0152_NeneNest_MetData.dat',
-        '0153': '0153_Summit_MetData.dat',
-        '0281': '0281_IPIF_MetData.dat',
-        '0282': '0282_Spencer_MetData.dat',
-        '0283': '0283_Laupahoehoe_MetData.dat',
-        '0286': '0286_Palamanui_MetData.dat',
-        '0287': '0287_Mamalahoa_MetData.dat',
-        '0501': '0501_Lyon_MetData_5min.dat',
-        '0502': '0502_NuuanuRes1_MetData.dat',
-        '0601': '0601_Waipa_MetData.dat',
-        '0602': '0602_CommonGround_MetData.dat'}
+# Creating sites and instruments
+for file in inst_to_file:
+    site_id = file.split("_")[1] + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
+    instrument_id = file.split("_")[0] + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
 
-#     # Add a mapping of instrumentID to a common name
+    # flag to check if variables have been created
+    created_vars = False
 
-#     inst_to_name = {
-#         '0115': '',
-#         '0116': '',
-#         '0119': '',
-#         '0143': '',
-#         '0151': '',
-#         '0152': '',
-#         '0153': '',
-#         '0281': '',
-#         '0282': '',
-#         '0283': '',
-#         '0286': '',
-#         '0287': '',
-#         '0501': '',
-#         '0502': '',
-#         '0601': '',
-#         '0602': ''
-#     }
+    # Creating the Tapis Site
+    result, debug = permitted_client.streams.create_site(project_id=project_id,
+                                                 request_body=[{
+                                                 "site_name":site_id, 
+                                                 "site_id":site_id,
+                                                 "latitude":50, 
+                                                 "longitude":10, 
+                                                 "elevation":2,
+                                                 "description":'test_site'
+                                                }], _tapis_debug=True)
+    logger.debug(result)
+    # logger.debug(debug)
 
-    files = [
-        "0115_Piiholo_MetData.dat",
-        "0116_Keokea_MetData.dat"
-        # "0119_KulaAg_MetData.dat",
-        # "0143_Nakula_MetData.dat",
-        # "0151_ParkHQ_MetData.dat",
-        # "0152_NeneNest_MetData.dat",
-        # "0153_Summit_MetData.dat",
-        # "0281_IPIF_MetData.dat",
-        # "0282_Spencer_MetData.dat",
-        # "0283_Laupahoehoe_MetData.dat",
-        # "0286_Palamanui_MetData.dat",
-        # "0287_Mamalahoa_MetData.dat",
-        # "0501_Lyon_MetData_5min.dat",
-        # "0502_NuuanuRes1_MetData.dat",
-        # "0601_Waipa_MetData.dat",
-        # "0602_CommonGround_MetData.dat"
-    ]
-    base_url = "https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/"
+    # Creating the Tapis Instrument
+    result, debug = permitted_client.streams.create_instrument(project_id=project_id,
+                                                       site_id=site_id,
+                                                       request_body=[{
+                                                        "inst_name":instrument_id,
+                                                        "inst_description": instrument_id+"_"+site_id,
+                                                        "inst_id":instrument_id
+                                                       }], _tapis_debug=True)
+    logger.debug(result)
 
-    year = curr_date.year
-    month = str(curr_date.month).zfill(2)
-    day = str(curr_date.day).zfill(2)
 
-    for file in files:
-        print(f"Parsing {file} into Tapis...")
+    ### TODO: Add instrument_id to a cache file?
+    cache_file.write(f"{instrument_id}\n")
 
-        site_id = file.split("_")[1] + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
-        instrument_id = file.split("_")[0] + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
+    # Begin loading in measurements and variables
+    start_date = date(2021, 8, 31) # change to date of first raw data
+    end_date = datetime.today().date()
 
-        # Creating the Tapis Site
-        result, debug = permitted_client.streams.create_site(project_id=project_id,
-                                                     request_body=[{
-                                                     "site_name":site_id, 
-                                                     "site_id":site_id,
-                                                     "latitude":50, 
-                                                     "longitude":10, 
-                                                     "elevation":2,
-                                                     "description":'test_site'
-                                                    }], _tapis_debug=True)
-        logger.debug(result)
-        # logger.debug(debug)
+    for dt in rrule(DAILY, dtstart=start_date, until=end_date):
+        curr_date = dt.date()
 
-        # Creating the Tapis Instrument
-        result, debug = permitted_client.streams.create_instrument(project_id=project_id,
-                                                           site_id=site_id,
-                                                           request_body=[{
-                                                            "inst_name":instrument_id,
-                                                            "inst_description": instrument_id+"_"+site_id,
-                                                            "inst_id":instrument_id
-                                                           }], _tapis_debug=True)
-        logger.debug(result)
-        # logger.debug(debug)
+        base_url = "https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/"
+
+        year = curr_date.year
+        month = str(curr_date.month).zfill(2)
+        day = str(curr_date.day).zfill(2)
+
+        logger.info(f"Attempting to parse {file} for {month}/{day}/{year} into Tapis...")
 
         link = f"{base_url}{year}/{month}/{day}/{file}"
-
-        # print(link)
 
         try:
             data_file = urllib.request.urlopen(link).readlines()
 
             list_vars = data_file[1].decode("UTF-8").strip().replace("\"", "").split(",")
-            list_units = data_file[2].decode("UTF-8").strip().replace("\"", "").split(",")
-
             logger.debug(list_vars)
-            logger.debug(list_units)
 
             # Creating the Tapis Variables
-            request_body = []
+            if not created_vars:
+                logger.debug(f"---IN CREATING TAPIS VARIABLES FOR {instrument_id}_{site_id}---")
+                created_vars = True
 
-            for i in range(2, len(list_vars)):
-                request_body.append({
-                    "var_id": list_vars[i],
-                    "var_name": list_vars[i],
-                    "units": list_units[i]
-                })
-
-            # Create variables in bulk
-            result, debug = permitted_client.streams.create_variable(project_id=project_id,
-                                                     site_id=site_id,
-                                                     inst_id=instrument_id,
-                                                     request_body=request_body,_tapis_debug=True)
-            logger.debug(result)
-            # logger.debug(debug)
+                list_units = data_file[2].decode("UTF-8").strip().replace("\"", "").split(",")
+                logger.debug(list_units)
+                
+                request_body = []
+    
+                for i in range(2, len(list_vars)):
+                    request_body.append({
+                        "var_id": list_vars[i],
+                        "var_name": list_vars[i],
+                        "units": list_units[i]
+                    })
+    
+                # Create variables in bulk
+                result, debug = permitted_client.streams.create_variable(project_id=project_id,
+                                                        site_id=site_id,
+                                                        inst_id=instrument_id,
+                                                        request_body=request_body,_tapis_debug=True)
+                logger.debug(result)
+                # logger.debug(debug)
+                logger.debug(f"---END OF CREATING VARIABLES FOR {instrument_id}_{site_id}---")
 
             # Parsing the measurements for each variable
+            logger.debug(f"---IN CREATING MEASUREMENT FOR {instrument_id}_{site_id}---")
             variables = []
             for i in range(4, len(data_file)):
                 measurements = data_file[i].decode("UTF-8").strip().replace("\"", "").split(",")
@@ -234,10 +191,14 @@ for dt in rrule(DAILY, dtstart=start_date, until=end_date):
                     measurement[list_vars[j]] = float(measurements[j])
                 variables.append(measurement)
             logger.debug(variables)
+            logger.debug(f"---END OF CREATING MEASUREMENT FOR {instrument_id}_{site_id}---")
 
             # Creating the Tapis measurements
             result = permitted_client.streams.create_measurement(inst_id=instrument_id, vars=variables)
             logger.debug(result)
         except Exception as e:
-            print("Error: ", e)
-            print("Continuing...")
+            logger.error("Error: ", e)
+            logger.error("File probably doesn't exist, Continuing...")
+
+
+cache_file.close()
