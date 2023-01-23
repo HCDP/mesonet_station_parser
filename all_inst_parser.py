@@ -10,9 +10,7 @@ from logging import FileHandler
 
 
 
-# #TODO: add argument parser
-# #      Something like python3 parser.py <API TOKEN> <InstrumentID>
-# #      or             python3 <username> <password> <InstrumentID>
+# Add argument parser
 
 parser = argparse.ArgumentParser(
     prog="parser.py",

@@ -10,10 +10,7 @@ from logging import FileHandler
 
 
 
-# #TODO: add argument parser
-# #      Something like python3 parser.py <API TOKEN> <InstrumentID>
-# #      or             python3 <username> <password> <InstrumentID>
-
+# Argument parser
 parser = argparse.ArgumentParser(
     prog="parser.py",
     description=""
@@ -23,6 +20,8 @@ parser.add_argument("instrument_id")
 parser.add_argument("-u", "--username")
 parser.add_argument("-p", "--password")
 parser.add_argument("-t", "--token")
+parser.add_argument("-f", "--file")
+### TODO: add a flag to indicate if instrument/site exist, or a seperate script, or a cache file
 parser.add_argument("-d", "--debug", action="store_true", help="turn on debug mode")
 ### TODO: add a verbose argument
 
@@ -132,31 +131,16 @@ for dt in rrule(DAILY, dtstart=start_date, until=end_date):
 #         '0602': ''
 #     }
 
-    files = [
-        "0115_Piiholo_MetData.dat",
-        "0116_Keokea_MetData.dat"
-        # "0119_KulaAg_MetData.dat",
-        # "0143_Nakula_MetData.dat",
-        # "0151_ParkHQ_MetData.dat",
-        # "0152_NeneNest_MetData.dat",
-        # "0153_Summit_MetData.dat",
-        # "0281_IPIF_MetData.dat",
-        # "0282_Spencer_MetData.dat",
-        # "0283_Laupahoehoe_MetData.dat",
-        # "0286_Palamanui_MetData.dat",
-        # "0287_Mamalahoa_MetData.dat",
-        # "0501_Lyon_MetData_5min.dat",
-        # "0502_NuuanuRes1_MetData.dat",
-        # "0601_Waipa_MetData.dat",
-        # "0602_CommonGround_MetData.dat"
-    ]
+    ### TODO: if file flag is provided, grab file locally
     base_url = "https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/"
 
     year = curr_date.year
     month = str(curr_date.month).zfill(2)
     day = str(curr_date.day).zfill(2)
 
-    for file in files:
+    # for file in files:
+    ### TODO: try except
+    with inst_to_file[str(arg.instrument_id)] as file:
         print(f"Parsing {file} into Tapis...")
 
         site_id = file.split("_")[1] + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
@@ -242,4 +226,3 @@ for dt in rrule(DAILY, dtstart=start_date, until=end_date):
             logger.debug(result)
         except Exception as e:
             print("Error: ", e)
-            print("Continuing...")
