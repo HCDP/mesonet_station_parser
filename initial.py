@@ -28,7 +28,7 @@ else:
 file_handler = FileHandler('parser.log')
 
 logging.basicConfig(level=level,
-                    format='%(asctime)s %(levelname)s %(message)s',
+                    format='%(asctime)s %(levelname)s: %(message)s [%(pathname)s:%(lineno)d]',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
                     handlers=[file_handler])
 
@@ -48,15 +48,15 @@ permitted_client = Tapis(base_url= base_url,
 #Generate an Access Token that will be used for all API calls
 permitted_client.get_tokens()
 
-project_id = 'Mesonet' + str(datetime.today().isoformat())
+project_id = 'Mesonet_test_00'
 
-result, debug = permitted_client.streams.create_project(project_name=project_id,
-                                        description='TEST project for MesoNet',
-                                        owner='testuser2', pi='wongy', 
-                                        funding_resource='test', 
-                                        project_url='https://www.hawaii.edu/climate-data-portal/',
-                                        active=True,_tapis_debug=True)
-logger.debug(result)
+# result, debug = permitted_client.streams.create_project(project_name=project_id,
+#                                         description='TEST project for MesoNet',
+#                                         owner='testuser2', pi='wongy', 
+#                                         funding_resource='test', 
+#                                         project_url='https://www.hawaii.edu/climate-data-portal/',
+#                                         active=True,_tapis_debug=True)
+# logger.debug(result)
 # logger.debug(debug)
 
 inst_to_file = {
@@ -81,10 +81,12 @@ inst_to_file = {
 # Creating cache file to store instrument_id
 cache_file = open("inst_cache.txt", "w")
 
+created = [True, True, False, False, False, False, False, False, False, False, False, False, False, False, False]
+
 # Creating sites and instruments
 for file in inst_to_file:
-    site_id = inst_to_file[file].split("_")[1] + "_" str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
-    instrument_id = file + "_" + str(datetime.today().isoformat()).replace(".", "-").replace(":", "-")
+    site_id = inst_to_file[file].split("_")[1] + "_test_00"
+    instrument_id = file + "_test_00"
     logger.debug(instrument_id)
     logger.debug(site_id)
 
@@ -104,26 +106,28 @@ for file in inst_to_file:
     logger.debug(result)
     # logger.debug(debug)
 
-    # Creating the Tapis Instrument
-    result, debug = permitted_client.streams.create_instrument(project_id=project_id,
-                                                       site_id=site_id,
-                                                       request_body=[{
-                                                        "inst_name":instrument_id,
-                                                        "inst_description": instrument_id+"_"+site_id,
-                                                        "inst_id":instrument_id
-                                                       }], _tapis_debug=True)
-    logger.debug(result)
+    # # Creating the Tapis Instrument
+    # result, debug = permitted_client.streams.create_instrument(project_id=project_id,
+    #                                                    site_id=site_id,
+    #                                                    request_body=[{
+    #                                                     "inst_name":instrument_id,
+    #                                                     "inst_description": instrument_id+"_"+site_id,
+    #                                                     "inst_id":instrument_id
+    #                                                    }], _tapis_debug=True)
+    # logger.debug(result)
 
 
     ### TODO: Add instrument_id to a cache file?
     cache_file.write(f"{instrument_id}\n")
 
     # Begin loading in measurements and variables
-    start_date = date(2021, 8, 31) # change to date of first raw data
+    start_date = date(2023, 1, 23) # change to date of first raw data
     end_date = datetime.today().date()
 
     for dt in rrule(DAILY, dtstart=start_date, until=end_date):
         curr_date = dt.date()
+
+        ### TODO: get request to end point: "https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/list/<iso formatted date>"
 
         base_url = "https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/"
 
@@ -133,7 +137,8 @@ for file in inst_to_file:
 
         logger.info(f"Attempting to parse {file} for {month}/{day}/{year} into Tapis...")
 
-        link = f"{base_url}{year}/{month}/{day}/{file}"
+        link = f"{base_url}{year}/{month}/{day}/{inst_to_file[file]}"
+        logging.debug("URL LINK: " + link)
 
         try:
             data_file = urllib.request.urlopen(link).readlines()
@@ -186,12 +191,12 @@ for file in inst_to_file:
                 for j in range(2, len(measurements)):
                     measurement[list_vars[j]] = float(measurements[j])
                 variables.append(measurement)
-            # logger.debug(variables)
+            logger.debug(variables)
             logger.debug(f"---END OF CREATING MEASUREMENT FOR {instrument_id}_{site_id}---")
 
             # Creating the Tapis measurements
             result = permitted_client.streams.create_measurement(inst_id=instrument_id, vars=variables)
-            logger.debug(result)
+            # logger.debug(result)
         except Exception as e:
             # logger.error("Error: ", e)
             logger.error("File probably doesn't exist, Continuing...")
