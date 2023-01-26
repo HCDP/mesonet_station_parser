@@ -38,7 +38,7 @@ else:
 file_handler = FileHandler('parser.log')
 
 logging.basicConfig(level=level,
-                    format='%(asctime)s %(levelname)s %(message)s',
+                    format='%(asctime)s %(levelname)s: %(message)s [%(pathname)s:%(lineno)d]',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
                     handlers=[file_handler])
 
