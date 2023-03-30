@@ -6,8 +6,8 @@ from tapipy.tapis import Tapis
 import logging
 from logging import FileHandler
 
-version = "02"
-create_project = False
+version = "03"
+create_project = True
 
 # Add argument parser
 parser = argparse.ArgumentParser(
@@ -76,22 +76,22 @@ if create_project:
     logger.debug(debug)
 
 inst_to_file = {
-    '0115': '0115_Piiholo_MetData.dat',
-    '0116': '0116_Keokea_MetData.dat',
-    '0119': '0119_KulaAg_MetData.dat',
-    '0143': '0143_Nakula_MetData.dat',
-    '0151': '0151_ParkHQ_MetData.dat',
-    '0152': '0152_NeneNest_MetData.dat',
-    '0153': '0153_Summit_MetData.dat',
-    '0281': '0281_IPIF_MetData.dat',
-    '0282': '0282_Spencer_MetData.dat',
-    '0283': '0283_Laupahoehoe_MetData.dat',
-    '0286': '0286_Palamanui_MetData.dat',
-    '0287': '0287_Mamalahoa_MetData.dat',
-    '0501': '0501_Lyon_MetData_5min.dat',
-    '0502': '0502_NuuanuRes1_MetData.dat',
-    '0601': '0601_Waipa_MetData.dat',
-    '0602': '0602_CommonGround_MetData.dat'
+    '0115': '0115_Piiholo_MetData.dat'
+    # '0116': '0116_Keokea_MetData.dat',
+    # '0119': '0119_KulaAg_MetData.dat',
+    # '0143': '0143_Nakula_MetData.dat',
+    # '0151': '0151_ParkHQ_MetData.dat',
+    # '0152': '0152_NeneNest_MetData.dat',
+    # '0153': '0153_Summit_MetData.dat',
+    # '0281': '0281_IPIF_MetData.dat',
+    # '0282': '0282_Spencer_MetData.dat',
+    # '0283': '0283_Laupahoehoe_MetData.dat',
+    # '0286': '0286_Palamanui_MetData.dat',
+    # '0287': '0287_Mamalahoa_MetData.dat',
+    # '0501': '0501_Lyon_MetData_5min.dat',
+    # '0502': '0502_NuuanuRes1_MetData.dat',
+    # '0601': '0601_Waipa_MetData.dat',
+    # '0602': '0602_CommonGround_MetData.dat'
 }
 
 # Creating cache file to store instrument_id
