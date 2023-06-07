@@ -133,6 +133,12 @@ except Exception as e:
 
 project_id = 'Mesonet_test_' + iteration
 
+# Checks if project exists (can be removed once code is finalize)
+try:
+    permitted_client.streams.get_project(project_id=project_id)
+except:
+    permitted_client.streams.create_project(project_name=project_id, owner="testuser2", pi="testuser2")
+
 #data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
 data_dir = "/Users/wongy/Desktop/testing/data"
 
@@ -141,7 +147,7 @@ for fname in listdir(data_dir):
     #get the full path
     data_file = join(data_dir, fname)
     #make sure it is a file, otherwise skip
-    if isfile(data_file) and "MetData" in fname:
+    if isfile(data_file):
         row_to_file = {}
         date_to_file = {}
 
@@ -151,16 +157,32 @@ for fname in listdir(data_dir):
         row_i = 0
         timestamp_col = 0
 
+        # TODO: Checks what type of file it is (MetData, SoilData, SysInfo, MinMax, RFMin)
+
+
+        # Tapis Structure: 
+        #   Project (MesoNet) -> Site (InstID+Name) -> Instrument (MetData/SoilData, MinMax, RFMin, SysInfo) -> Variables -> Measurements
+        # site_id:
+        #   <STATION ID>
+        # inst_id:
+        #   <STATION ID>_ + "MetData", "SysInfo" (WILL IMPLEMENT LATER), "MinMax", "RFMin"
+
+        # File Name Convention: <STATION ID>_<STATION NAME>_<FILETYPE>.DAT
+        fname_splitted = fname.split("_")
+
+        site_id = fname_splitted.split("_")[0] + "_test_" + iteration # STATION ID
+        station_name = fname_splitted[1]
+        instrument_id = site_id + "_" + fname_splitted[2].split(".")[0] + "_test_" + iteration 
+        
+        
         with open(data_file, "r", encoding = "utf8", errors = "backslashreplace") as file:
             logging.info(f"Parsing {fname} into Tapis...")
-
-            site_id = fname.split("_")[1] + "_test_" + iteration
-            instrument_id = fname.split("_")[0] + "_test_" + iteration
 
             logger.debug(f"Site Id: {site_id}, Instrument Id: {instrument_id}")
 
             inst_data_file = file.readlines()
             
+            # grabbing the list of variables from the file
             list_vars = inst_data_file[1].strip().replace("\"", "").split(",")
             
             logger.debug(f"\033[1;31m ---Start of parsing measurement---\033[0m")
