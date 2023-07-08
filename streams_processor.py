@@ -11,48 +11,93 @@ from os.path import exists, basename, dirname, isfile, join
 from os import makedirs, remove, listdir
 import json
 import pickle
+import pandas as pd
 
+def get_location_info(station_id: str) -> tuple:
+    master_url = "https://raw.githubusercontent.com/ikewai/hawaii_wx_station_mgmt_container/main/hi_mesonet_sta_status.csv"
 
-def create_site(fname: str, project_id: str, site_id: str, inst_id: str) -> bool:
-    logger.info(
-        "\033[1;31m --- Start of Creating Site for %s ---\033[0m", fname)
+    df = pd.read_csv(master_url)
+
+    
+    # TODO: If value not available set lat/lon to somewhere in ocean
+
+    latitude = df[df['sta_ID'] == site_id]["LAT"]
+    longitude = df[df['sta_ID'] == site_id]["LON"]
+    elevation = df[df['sta_ID'] == site_id]["ELEV"]
+
+    return (latitude, longitude, elevation)
+
+def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bool:
+    logger.info("\033[1;31m --- Start of Creating Site for %s ---\033[0m", fname)
     try:
-        result, debug = permitted_client.streams.create_site(project_id=project_id,
+        (latitude, longitude, elevation) = get_location_info(station_id=site_id)
+
+        result = permitted_client.streams.create_site(project_id=project_id,
                                                              request_body=[{
                                                                  "site_name": site_id,
                                                                  "site_id": site_id,
-                                                                 "latitude": 50,  # needs to be changed
-                                                                 "longitude": 10,  # needs to be changed
-                                                                 "elevation": 2,  # needs to be changed
-                                                                 "description": inst_id+"_"+site_id}], _tapis_debug=True)
+                                                                 "latitude": latitude, 
+                                                                 "longitude": longitude,
+                                                                 "elevation": elevation,
+                                                                 "description": site_name}])
         logger.info(result)
         logger.info(
             "\033[1;31m --- End of Creating Site for %s ---\033[0m", fname)
-        return True
+        
     except Exception as error:
-        logger.error("Error: Site was not created - %s", error.message)
+        logger.info("Error: Site was not created for %s - %s", fname, error.message)
         return False
 
 
-def create_instrument(fname: str, project_id: str, site_id: str, inst_id: str) -> bool:
     try:
-        logger.info(
-            "\033[1;31m --- Start of Creating Instrument for %s ---\033[0m", fname)
-        result, debug = permitted_client.streams.create_instrument(project_id=project_id,
+        # creating instrument in bulk (MetData, MinMax, SysInfo, RFMin)
+        logger.info("\033[1;31m --- Start of Creating Instruments for %s ---\033[0m", fname)
+        result = permitted_client.streams.create_instrument(project_id=project_id,
                                                                    site_id=site_id,
-                                                                   request_body=[{
-                                                                       "inst_name": instrument_id,
-                                                                       "inst_id": instrument_id,
-                                                                       "inst_description": instrument_id+"_"+site_id}], _tapis_debug=True)
+                                                                   request_body=[
+                                                                       {
+                                                                        "inst_name": site_id + "_" + "MetData",
+                                                                        "inst_id": site_id + "_" + "MetData",
+                                                                        "inst_description": "MetData for " + site_id + "_" + site_name
+                                                                       },
+                                                                       {
+                                                                        "inst_name": site_id + "_" + "MinMax",
+                                                                        "inst_id": site_id + "_" + "MinMax",
+                                                                        "inst_description": "MinMax data for " + site_id + "_" + site_name
+                                                                       },
+                                                                       {
+                                                                        "inst_name": site_id + "_" + "SysInfo",
+                                                                        "inst_id": site_id + "_" + "SysInfo",
+                                                                        "inst_description": "SysInfo for " + site_id + "_" + site_name
+                                                                       },
+                                                                       {
+                                                                        "inst_name": site_id + "_" + "RFMin",
+                                                                        "inst_id": site_id + "_" + "RFMin",
+                                                                        "inst_description": "RFMin data for " + site_id + "_" + site_name
+                                                                       }
+                                                                       ])
         logger.info(result)
-        logger.info(
-            "\033[1;31m --- End of Creating Instrument for %s ---\033[0m", fname)
-
-        return True
-    except Exception as error:
-        logger.error("Error: Instrument was not created - %s", error.message)
+        logger.info("\033[1;31m --- End of Creating Instruments for %s ---\033[0m", fname)
+    except Exception as e:
+        logger.info("Error: Instruments was not created for %s - %s", fname, error.message)
         return False
 
+    return True
+
+
+def standardized_vars(station_id: str) -> list:
+    conversion_dir = "./standard_var"
+    standard = []
+   
+   if station_id in ["0119", "0152", "0153"]:
+        df = pd.read_csv(conversion_dir + "/119,152,153.csv")
+    if station_id in ["0141", "0143", "0151", "0154", "0281", "0501", "0521", "0602"]:
+        df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
+
+    standard = df['Standard short name'].tolist()
+    raw = df['Raw data column name'].tolist()
+
+    return {raw[i]: standard[i] for i in range(len(standard))}
 
 def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, list_vars: list, list_units: list) -> bool:
     try:
@@ -62,10 +107,14 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
 
         request_body = []
 
+        station_id = site_id.split("_")[0]
+
+        standard_var = standardized_vars(station_id)
+
         for i in range(2, len(list_vars)):
             request_body.append({
-                "var_id": list_vars[i],
-                "var_name": list_vars[i],
+                "var_id": standard_var[list_vars[i]],
+                "var_name": standard_var[list_vars[i]],
                 "units": list_units[i]
             })
 
@@ -140,37 +189,40 @@ try:
 
     # Generate an Access Token that will be used for all API calls
     permitted_client.get_tokens()
+
 except Exception as e:
     logger.error("Error: Tapis Client not created - %s", e.message)
 
 project_id = 'Mesonet_test_' + iteration
 
+project_exist = False
 # Checks if project exists (can be removed once code is finalize)
 try:
     permitted_client.streams.get_project(project_id=project_id)
+    project_exist = True
 except Exception as e:
-    permitted_client.streams.create_project(
-        project_name=project_id, owner="testuser2", pi="testuser2")
+    print(e.message)
+
+if project_exist == False:
+    try:
+        logger.info("\033[1;31m --- Creating Project for %s---\033[0m", project_id)
+        permitted_client.streams.create_project(
+            project_name=project_id, owner="testuser2", pi="testuser2")
+        logger.info("\033[1;31m --- End of Creating Project for %s---\033[0m", project_id)
+    except Exception as e:
+        logger.error("Project does not exist, exiting script...")
+        exit(-1)
 
 # data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
-data_dir = "/Users/wongy/Desktop/testing/data"
+data_dir = "./data"
 
 # process all the files in the data dir
 for fname in listdir(data_dir):
     # get the full path
     data_file = join(data_dir, fname)
-    # make sure it is a file, otherwise skip
+    # make sure it is a .dat file, otherwise skip
     if isfile(data_file) and fname.endswith(".dat"):
         logger.info("Working on %s", fname)
-        row_to_file = {}
-        date_to_file = {}
-
-        header = ""
-        outfile = None
-        file_date = None
-        row_i = 0
-        timestamp_col = 0
-
 
         # Tapis Structure:
         #   Project (MesoNet) -> Site (InstID+Name) -> Instrument (MetData/SoilData, MinMax, RFMin, SysInfo) -> Variables -> Measurements
@@ -184,7 +236,7 @@ for fname in listdir(data_dir):
 
         # Checks what type of file it is (MetData, SoilData, SysInfo, MinMax, RFMin)
         file_type = ""
-        if "metadata" in fname.lower() or "soildata" in fname.lower():
+        if "metdata" in fname.lower() or "soildata" in fname.lower():
             logger.info("File Category: MetaData/SoilData")
             file_type = "MetData"
         elif "sysinfo" in fname.lower():
@@ -197,12 +249,24 @@ for fname in listdir(data_dir):
             logger.info("File Category: RFMin")
             file_type = "RFMin"
         else:
-            logger.error("Error: %s is not a file in one of the 4 categories", fname)
+            logger.warning("Error: %s is not a file in one of the 4 categories", fname)
             continue
 
         site_id = fname_splitted[0] + "_" + iteration  # STATION ID
+        station_id = fname_splitted[0]
         station_name = fname_splitted[1] # Station Name
         instrument_id = site_id + "_" + file_type
+
+
+        # TODO: Check if site exists, else create site and instruments
+
+        try:
+            permitted_client.streams.get_site(project_id=project_id, site_id=site_id)
+        except Exception as e: 
+            if create_site(fname, project_id, site_id, station_name) == False:
+                logger.error("Unable to create site/instruments for %s", site_id)
+                continue
+
 
         with open(data_file, "r", encoding="utf8", errors="backslashreplace") as file:
             logger.info("Parsing %s into Tapis...", fname)
@@ -211,12 +275,25 @@ for fname in listdir(data_dir):
 
             inst_data_file = file.readlines()
 
-           # grabbing the list of variables from the file
+            # grabbing the list of variables from the file
             list_vars = inst_data_file[1].strip().replace("\"", "").split(",")
-           # TODO: standardize variable names
 
+            # TODO: Check if variables exist, else create variables
+            try:
+                permitted_client.streams.list_variables(project_id=project_id, site_id=site_id, inst_id=instrument_id)
+            except Exception as e:
+                logger.info(e.message)
+                list_units = inst_data_file[2].strip().replace("\"", "").split(",")
+                if create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units) == False:
+                    logger.error("Variable not created, Skipping %s", fname)
+                    continue
+
+            # TODO: standardize variable names
+        
+            standard_var = standardized_vars(station_id)
+            
             logger.info("\033[1;31m ---Start of parsing measurement---\033[0m")
-           # Parsing the measurements for each variable
+            # Parsing the measurements for each variable
             variables = []
             for i in range(4, len(inst_data_file)):
                 measurements = inst_data_file[i].strip().replace(
@@ -234,47 +311,21 @@ for fname in listdir(data_dir):
                         measurements[0], '%Y-%m-%d %H:%M:%S')
 
                 measurement['datetime'] = time_string.isoformat()+"-10:00"
+
+
                 for j in range(2, len(measurements)):
-                    measurement[list_vars[j]] = measurements[j]
+                    measurement[standard_var[list_vars[j]]] = measurements[j]
                 variables.append(measurement)
 
-                # Creating the Tapis measurements
-                try:
-                    result = permitted_client.streams.create_measurement(
-                        inst_id=instrument_id, vars=variables)
-                    logger.info(
-                        "\033[1;31m ---End of parsing measurement---\033[0m")
-                except Exception as e:
-                    if e.message == "No Instrument found matching inst_id.":
-                        if create_site(fname, project_id, site_id, instrument_id):
-                            pass
-                        else:
-                            continue
-
-                        if create_instrument(fname, project_id, site_id, instrument_id):
-                            pass
-                        else:
-                            continue
-
-                        list_units = inst_data_file[2].strip().replace(
-                            "\"", "").split(",")
-                        if create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units):
-                            pass
-                        else:
-                            continue
-
-                        result = permitted_client.streams.create_measurement(
-                            inst_id=instrument_id, vars=variables)
-                    elif e.message == "Unrecognized exception type: <class 'KeyError'>. Exception: 'variables'":
-                        list_units = inst_data_file[2].strip().replace(
-                            "\"", "").split(",")
-                        if create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units):
-                            result = permitted_client.streams.create_measurement(
-                                inst_id=instrument_id, vars=variables)
-                        else:
-                            continue
-                    else:
-                        logger.error(
-                            "Error: unable to parse measurement into Tapis for %s - %s", fname, e.message)
-                        continue
-                logging.info(f"Done parsing %s into Tapis", fname)
+            # Creating the Tapis measurements
+            try:
+                result = permitted_client.streams.create_measurement(
+                    inst_id=instrument_id, vars=variables)
+                logger.info(
+                    "\033[1;31m ---End of parsing measurement---\033[0m")
+            except Exception as e:
+                    logger.error(
+                        "Error: unable to parse measurement into Tapis for %s - %s", fname, e.message)
+                    logger.error("Skipping %s...", fname)
+                    continue
+            logging.info(f"Done parsing %s into Tapis", fname)
