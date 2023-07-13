@@ -15,17 +15,22 @@ import pandas as pd
 
 def get_location_info(station_id: str) -> tuple:
     master_url = "https://raw.githubusercontent.com/ikewai/hawaii_wx_station_mgmt_container/main/hi_mesonet_sta_status.csv"
-
-    df = pd.read_csv(master_url)
-
     
-    # TODO: If value not available set lat/lon to somewhere in ocean
+    dtype_dict = {'sta_ID': str}
+    
+    df = pd.read_csv(master_url, dtype=dtype_dict)
+    
+    # Check if station exist in csv
+    if len(df[df['sta_ID'] == station_id]) == 1:
+        logger.info("Station's meta data for %s found", station_id)
+        latitude = df[df['sta_ID'] == station_id]["LAT"]
+        longitude = df[df['sta_ID'] == station_id]["LON"]
+        elevation = df[df['sta_ID'] == station_id]["ELEV"]
 
-    latitude = df[df['sta_ID'] == site_id]["LAT"]
-    longitude = df[df['sta_ID'] == site_id]["LON"]
-    elevation = df[df['sta_ID'] == site_id]["ELEV"]
-
-    return (latitude, longitude, elevation)
+        return (latitude, longitude, elevation)
+    
+    logger.info("Station's meta data for %s not found", station_id)
+    return (20, -158, 0) # somewhere left of Hawaii island in the ocean
 
 def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bool:
     logger.info("\033[1;31m --- Start of Creating Site for %s ---\033[0m", fname)
@@ -89,10 +94,12 @@ def standardized_vars(station_id: str) -> list:
     conversion_dir = "./standard_var"
     standard = []
    
-   if station_id in ["0119", "0152", "0153"]:
+    if station_id in ["0119", "0152", "0153"]:
         df = pd.read_csv(conversion_dir + "/119,152,153.csv")
-    if station_id in ["0141", "0143", "0151", "0154", "0281", "0501", "0521", "0602"]:
+    elif station_id in ["0141", "0143", "0151", "0154", "0281", "0282", "0283", "0286", "0287", "0288", "0501", "0521", "0602"]:
         df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
+    else:
+        df = pd.read_csv(conversion_dir + "/Universal.csv")
 
     standard = df['Standard short name'].tolist()
     raw = df['Raw data column name'].tolist()
@@ -109,7 +116,10 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
 
         station_id = site_id.split("_")[0]
 
-        standard_var = standardized_vars(station_id)
+        if inst_id.split("_")[-1] == "MetData":
+            standard_var = standardized_vars(station_id)
+        else:
+            standard_var = {list_vars[i]: list_vars[i] for i in range(len(list_vars))}
 
         for i in range(2, len(list_vars)):
             request_body.append({
@@ -192,6 +202,7 @@ try:
 
 except Exception as e:
     logger.error("Error: Tapis Client not created - %s", e.message)
+    exit()
 
 project_id = 'Mesonet_test_' + iteration
 
@@ -258,8 +269,7 @@ for fname in listdir(data_dir):
         instrument_id = site_id + "_" + file_type
 
 
-        # TODO: Check if site exists, else create site and instruments
-
+        # Check if site exists, else create site and instruments
         try:
             permitted_client.streams.get_site(project_id=project_id, site_id=site_id)
         except Exception as e: 
@@ -275,24 +285,32 @@ for fname in listdir(data_dir):
 
             inst_data_file = file.readlines()
 
-            # grabbing the list of variables from the file
+            # Grabbing the list of variables from the file
             list_vars = inst_data_file[1].strip().replace("\"", "").split(",")
 
-            # TODO: Check if variables exist, else create variables
+            # Check if variables exist, else create variables
             try:
-                permitted_client.streams.list_variables(project_id=project_id, site_id=site_id, inst_id=instrument_id)
+                result = permitted_client.streams.list_variables(project_id=project_id, site_id=site_id, inst_id=instrument_id)
+                
+                if len(result) == 0:
+                    list_units = inst_data_file[2].strip().replace("\"", "").split(",")
+                    if create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units) == False:
+                        logger.error("Variable not created, Skipping %s", fname)
+                        continue
             except Exception as e:
-                logger.info(e.message)
-                list_units = inst_data_file[2].strip().replace("\"", "").split(",")
-                if create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units) == False:
-                    logger.error("Variable not created, Skipping %s", fname)
-                    continue
+                logger.error(e.message)
+                logger.error("Skipping %s...", fname)
+                continue
+              
 
-            # TODO: standardize variable names
-        
-            standard_var = standardized_vars(station_id)
+            # Check filetype, if MinMax -> standardize variable names
+            if file_type == "MetData":
+                standard_var = standardized_vars(station_id)
+            else:
+                standard_var = {list_vars[i]: list_vars[i] for i in range(len(list_vars))}
             
             logger.info("\033[1;31m ---Start of parsing measurement---\033[0m")
+
             # Parsing the measurements for each variable
             variables = []
             for i in range(4, len(inst_data_file)):
