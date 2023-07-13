@@ -166,22 +166,27 @@ else:
     level = logging.INFO
 
 
-handlers = []
 
 file_handler = FileHandler('parser.log')
 
-handlers.append(file_handler)
+
+logger = logging.getLogger('Logger1')
+
+logger.setLevel(level)
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [%(pathname)s:%(lineno)d]')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 if (args.verbose):
     stdout_handler = logging.StreamHandler()
-    handlers.append(stdout_handler)
+    logger.addHandler(stdout_handler)
 
-logging.basicConfig(level=level,
-                    format='%(asctime)s %(levelname)s: %(message)s [%(pathname)s:%(lineno)d]',
-                    datefmt='%m/%d/%Y %I:%M:%S %p',
-                    handlers=handlers)
+logger2 = logging.getLogger('Logger2')
+logger2.setLevel(level)
 
-logger = logging.getLogger()
+file_handler2 = FileHandler('execution.log')
+file_handler2.setFormatter(formatter)
+logger2.addHandler(file_handler2)
 
 permitted_username = "testuser2"
 permitted_user_password = "testuser2"
@@ -226,6 +231,9 @@ if project_exist == False:
 
 # data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
 data_dir = "./data"
+
+# Count how many files were parsed into streams-api vs total num of files
+count = 0
 
 # process all the files in the data dir
 for fname in listdir(data_dir):
@@ -346,4 +354,8 @@ for fname in listdir(data_dir):
                         "Error: unable to parse measurement into Tapis for %s - %s", fname, e.message)
                     logger.error("Skipping %s...", fname)
                     continue
-            logging.info(f"Done parsing %s into Tapis", fname)
+            
+            count += 1
+            logger.info(f"Done parsing %s into Tapis", fname)
+
+logger2.info("%d files out of %d were parsed into streams-api", count, len(listdir(data_dir)))
