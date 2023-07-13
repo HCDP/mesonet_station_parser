@@ -1,0 +1,23 @@
+Raw data column name,Standard short name,notes
+SWup_Avg,SWin_Avg,
+SWdn_Avg,SWout_Avg,
+LWup_Avg,LWinUC_Avg,uncorrected for Trnet
+LWdn_Avg,LWoutUC_Avg,uncorrected for Trnet
+Trnet_Avg,Trnet_Avg,
+Tair_1_Avg,Tair_1_Avg,
+RH_1_Avg,RH_1_Avg,
+Tair_2_Avg,Tair_2_Avg,
+RH_2_Avg,RH_2_Avg,
+TC_air_Avg,TC_air_Avg,
+WindSpeed,WS_Avg,
+WindSpeed_rs,WSrs_Avg,
+WindDir,WDrs_Avg,
+WindDir_sd,WD_StdCS,
+WindDir_uv,WDuv_Avg,
+Tsoil_Avg,Tsoil_d1_Avg,
+SoilHeatFlux_Avg(1),SHF_Avg,
+SoilHeatFlux_Avg(2),SHF_2_Avg,
+SoilMoisture_Avg,SM_d1_Avg,
+SoilMoisture_T_Avg,SMadjT_d1_Avg,adjusted for temperature
+Rainfall_Tot,RF_Tot,
+FOG_Tot,FOGtip_Tot,
