@@ -32,12 +32,12 @@ Psl,Psl,
 Tsoil_TCAV_Avg,Tsoil_d1_Avg,
 SHF_16cm_Avg,SHF_Avg,
 SHFsrf_Avg,SHFsrf_Avg,
-SM_1_8cm_Avg,SM_d1_Avg,
-SM_2_NAcm_Avg,SM_d2_Avg,no sensor
-SM_3_NAcm_Avg,SM_d3_Avg,no sensor
+SM_1_H8cm_Avg,SM_d1_Avg,
+SM_2_NANANcm_Avg,SM_d2_Avg,no sensor
+SM_3_NANANcm_Avg,SM_d3_Avg,no sensor
 Tsoil_SM1_8cm,Tsoil_d2,
-Tsoil_SM2_NAcm,Tsoil_d3,no sensor
-Tsoil_SM3_NAcm,Tsoil_d4,no sensor
+Tsoil_SM2_NANcm,Tsoil_d3,no sensor
+Tsoil_SM3_NANcm,Tsoil_d4,no sensor
 RF_Tot,RF_Tot,
 RGtip_Tot,RGtip_Tot,
 RFint_Max,RFint_Max,
