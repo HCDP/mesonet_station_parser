@@ -173,8 +173,8 @@ if (args.verbose):
 logger2 = logging.getLogger('Logger2')
 logger2.setLevel(level)
 
-file_handler2 = FileHandler('./logs/out.log')]
-formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]'
+file_handler2 = FileHandler('./logs/out.log')
+formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
 file_handler2.setFormatter(formatter)
 logger2.addHandler(file_handler2)
 
@@ -234,7 +234,7 @@ progress = 0
 # process all the files in the data dir
 for fname in listdir(data_dir):
     progress += 1
-    logger2.info("Progress: %d/%d", progress, len(listdir(data_dur)))
+    logger2.info("Progress: %d/%d", progress, len(listdir(data_dir)))
     # get the full path
     data_file = join(data_dir, fname)
     # make sure it is a .dat file, otherwise skip
@@ -329,8 +329,8 @@ for fname in listdir(data_dir):
                 measurement = {}
                 measurement_time = measurements[0].split(" ")
 
-                if (int(time[1].split(":")[0]) > 23):
-                    time_string =measurement_time[0] + " 23:59:59"
+                if (int(measurement_time[1].split(":")[0]) > 23):
+                    time_string = measurement_time[0] + " 23:59:59"
                     time_string = datetime.strptime(
                         time_string, '%Y-%m-%d %H:%M:%S')
                     time_string += timedelta(seconds=1)
