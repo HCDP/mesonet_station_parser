@@ -153,34 +153,36 @@ args = parser.parse_args()
 tenant = "dev"
 base_url = 'https://' + tenant + '.develop.tapis.io'
 
+
+# Logger for errors
 level = logging.ERROR
-
-
 file_handler = FileHandler('./logs/out.err')
-
-
 logger = logging.getLogger('Logger1')
-
 logger.setLevel(level)
 formatter = logging.Formatter('[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-if (args.verbose):
-    stdout_handler = logging.StreamHandler()
-    logger.addHandler(stdout_handler)
-
+# Logger for execution info
+level = logging.INFO
 logger2 = logging.getLogger('Logger2')
 logger2.setLevel(level)
-
 file_handler2 = FileHandler('./logs/out.log')
 formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
 file_handler2.setFormatter(formatter)
 logger2.addHandler(file_handler2)
 
+# Print to stdout if -v (verbose) option is passed
+if (args.verbose):
+    stdout_handler = logging.StreamHandler()
+    logger.addHandler(stdout_handler)
+    logger2.addHandler(stdout_handler)
+
 permitted_username = "testuser2"
 permitted_user_password = "testuser2"
 
+# iteration of test
+# TODO: can be removed for final revision
 iteration = args.iteration
 
 start_time = time.time()
