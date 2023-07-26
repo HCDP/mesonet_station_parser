@@ -11,6 +11,7 @@ from os import listdir
 import json
 import pandas as pd
 import time
+import cProfile
 
 def get_location_info(station_id: str) -> tuple:
     master_url = "https://raw.githubusercontent.com/ikewai/hawaii_wx_station_mgmt_container/main/hi_mesonet_sta_status.csv"
@@ -122,12 +123,15 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
                 "var_name": standard_var[list_vars[i]],
                 "units": list_units[i]
             })
-
+        
         # Create variables in bulk
         permitted_client.streams.create_variable(project_id=project_id,
                                                  site_id=site_id,
                                                  inst_id=inst_id,
                                                  request_body=request_body, _tapis_debug=True)
+
+
+
         return None 
     except Exception as e:
         msg = e
@@ -228,7 +232,8 @@ if project_exist == False:
         logger.error("error: %s", msg)
         exit(-1)
 
-data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
+# data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
+data_dir = "E:\GitHub\mesonet_station_parser\data\\temp"
 
 # Count how many files were parsed into streams-api vs total num of files
 count = 0
@@ -281,7 +286,7 @@ for fname in listdir(data_dir):
             permitted_client.streams.get_site(project_id=project_id, site_id=site_id)
         except Exception as e:
             result = create_site(fname, project_id, site_id, station_name)
-            if result != None:
+            if result != None and "already use in project namepsace" not in result and "already exists" not in result:
                 logger.error("Unable to create site/instruments:")
                 logger.error("file: %s", fname)
                 logger.error("error: %s", result)
@@ -297,9 +302,12 @@ for fname in listdir(data_dir):
             # Check if variables exist, else create variables
             try:
                 result = permitted_client.streams.list_variables(project_id=project_id, site_id=site_id, inst_id=instrument_id)
-                tapis_vars = [i.var_id for i in result]
+                tapis_vars = set([i.var_id for i in result])
 
-                if list_vars not in tapis_vars:
+                file_vars = set(list_vars[2:])
+                if file_type == "MetData":
+                    file_vars = set(standardized_vars(station_id, list_vars).values())
+                if len(tapis_vars) == 0 or file_vars.difference(tapis_vars):
                     list_units = inst_data_file[2].strip().replace("\"", "").split(",")
                     result = create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units)
                     if result != None:
@@ -311,18 +319,17 @@ for fname in listdir(data_dir):
                 msg = e
                 if hasattr(e, 'message'):
                    msg = e.message
-                logger.error("Unable to list variables:") 
+                logger.error("Unable to list variables:")
                 logger.error("file: %s", fname)
                 logger.error("error: %s", msg)
                 continue
-              
 
             # Check filetype, if MinMax -> standardize variable names
             if file_type == "MetData":
                 standard_var = standardized_vars(station_id, list_vars)
             else:
                 standard_var = {list_vars[i]: list_vars[i] for i in range(len(list_vars))}
-            
+
             # Parsing the measurements for each variable
             variables = []
             for i in range(4, len(inst_data_file)):
