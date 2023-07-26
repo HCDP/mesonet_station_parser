@@ -384,7 +384,7 @@ if __name__ == "__main__":
     level = logging.INFO
     logger2 = logging.getLogger('Logger2')
     logger2.setLevel(level)
-    file_handler2 = FileHandler('./logs/leagacy_out.log')
+    file_handler2 = FileHandler('./logs/legacy_out.log')
     formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
     file_handler2.setFormatter(formatter)
     logger2.addHandler(file_handler2)
