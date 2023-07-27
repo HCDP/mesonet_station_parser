@@ -85,7 +85,7 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
             msg = e.message
         return msg 
 
-    with open("./cache/site.cache" + iteration, "a") as file:
+    with open("../cache/site.cache" + iteration, "a") as file:
         file.write(f"{station_id}\n")
 
     return None
@@ -134,7 +134,7 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
                                                  request_body=request_body)
         
         file_type = inst_id.split("_")[-1]
-        with open("./cache/var.cache"+ iteration + file_type, "r") as var_file:
+        with open("../cache/var.cache"+ iteration + file_type, "r") as var_file:
             cached_vars = json.load(var_file)
 
             if station_id in cached_vars.keys():
@@ -142,7 +142,7 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
             else:
                 cached_vars[station_id] = list_vars[2:]
         
-        with open("./cache/var.cache"+ iteration + file_type,"w") as var_file:
+        with open("../cache/var.cache"+ iteration + file_type,"w") as var_file:
             json.dump(cached_vars, var_file)
         
         return None
@@ -207,16 +207,16 @@ def process_file(file_link):
     # Check if site exists, else create site and instruments
 
     if exists("./site.cache" + iteration):
-        file = open("./cache/site.cache" + iteration, "r")
+        file = open("../cache/site.cache" + iteration, "r")
     else:
-        file = open("./cache/site.cache" + iteration, "w+")
+        file = open("../cache/site.cache" + iteration, "w+")
     
     cached_sites = file.read()
     file.close()
 
     if station_id not in cached_sites:
         with site_create_lock:
-            file = open("./cache/site.cache" + iteration, "r")
+            file = open("../cache/site.cache" + iteration, "r")
             cached_sites = file.read()
             file.close()
             if station_id not in cached_sites:
@@ -240,19 +240,19 @@ def process_file(file_link):
 
     # Check if variables exist, else create variables
     if exists("./var.cache" + iteration + file_type):
-        file = open("./cache/var.cache" + iteration + file_type, "r")
+        file = open("../cache/var.cache" + iteration + file_type, "r")
     else:
-        file = open("./cache/var.cache" + iteration + file_type, "w")
+        file = open("../cache/var.cache" + iteration + file_type, "w")
         json.dump({}, file)
         file.close()
-        file = open("./cache/var.cache"+iteration + file_type, "r")
+        file = open("../cache/var.cache"+iteration + file_type, "r")
     
     cached_vars = json.load(file)
     file.close()
 
     if station_id not in cached_vars.keys():
         with var_create_lock:
-            file = open("./cache/var.cache"+iteration + file_type, "r")
+            file = open("../cache/var.cache"+iteration + file_type, "r")
             cached_vars = json.load(file)
             file.close()
             if station_id not in cached_vars.keys():
@@ -267,7 +267,7 @@ def process_file(file_link):
         file_vars = set(list_vars[2:])
         if file_vars.difference(set(cached_vars[station_id])):
             with var_create_lock:
-                file = open("./cache/var.cache"+iteration + file_type, "r")
+                file = open("../cache/var.cache"+iteration + file_type, "r")
                 cached_vars = json.load(file)
                 file.close()
                 if file_vars.difference(set(cached_vars[station_id])):
@@ -373,7 +373,7 @@ if __name__ == "__main__":
 
     # Logger for errors
     level = logging.ERROR
-    file_handler = FileHandler('./logs/legacy_out.err')
+    file_handler = FileHandler('../logs/legacy_out.err')
     logger = logging.getLogger('Logger1')
     logger.setLevel(level)
     formatter = logging.Formatter('[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
@@ -384,7 +384,7 @@ if __name__ == "__main__":
     level = logging.INFO
     logger2 = logging.getLogger('Logger2')
     logger2.setLevel(level)
-    file_handler2 = FileHandler('./logs/legacy_out.log')
+    file_handler2 = FileHandler('../logs/legacy_out.log')
     formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
     file_handler2.setFormatter(formatter)
     logger2.addHandler(file_handler2)
@@ -450,14 +450,14 @@ if __name__ == "__main__":
             sys.exit(-1)
 
     # Checks if logs and cache directory exists otherwise create them
-    if not exists("./logs"):
-        makedirs("./logs")
+    if not exists("../logs"):
+        makedirs("../logs")
 
-    if not exists("./cache"):
-        makedirs("./cache")
+    if not exists("../cache"):
+        makedirs("../cache")
 
 
-    start_date = "2023-07-24"
+    start_date = "2023-02-02"
     end_date = "2023-07-25"
 
     start_date_obj = date.fromisoformat(start_date)
