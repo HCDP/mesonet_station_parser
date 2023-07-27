@@ -4,7 +4,7 @@ from tapipy.tapis import Tapis
 import logging
 from logging import FileHandler
 from os.path import basename, isfile, join, exists
-from os import listdir
+from os import listdir, makedirs
 import pandas as pd
 import time
 import concurrent.futures
@@ -85,7 +85,7 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
             msg = e.message
         return msg 
 
-    with open("site.cache" + iteration, "a") as file:
+    with open("./cache/site.cache" + iteration, "a") as file:
         file.write(f"{station_id}\n")
 
     return None
@@ -134,7 +134,7 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
                                                  request_body=request_body)
         
         file_type = inst_id.split("_")[-1]
-        with open("var.cache"+ iteration + file_type, "r") as var_file:
+        with open("./cache/var.cache"+ iteration + file_type, "r") as var_file:
             cached_vars = json.load(var_file)
 
             if station_id in cached_vars.keys():
@@ -142,7 +142,7 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
             else:
                 cached_vars[station_id] = list_vars[2:]
         
-        with open("var.cache"+ iteration + file_type,"w") as var_file:
+        with open("./cache/var.cache"+ iteration + file_type,"w") as var_file:
             json.dump(cached_vars, var_file)
         
         return None
@@ -196,7 +196,7 @@ def process_file(file_link):
         file_type = "RFMin"
     else:
         logger.error("File in not in one of the 4 categories")
-        logger.error("file: %s", fname)
+        logger.error("file link: %s", file_link)
         return False
 
     site_id = fname_splitted[0] + "_" + iteration  # STATION ID
@@ -207,23 +207,23 @@ def process_file(file_link):
     # Check if site exists, else create site and instruments
 
     if exists("./site.cache" + iteration):
-        file = open("site.cache" + iteration, "r")
+        file = open("./cache/site.cache" + iteration, "r")
     else:
-        file = open("site.cache" + iteration, "w+")
+        file = open("./cache/site.cache" + iteration, "w+")
     
     cached_sites = file.read()
     file.close()
 
     if station_id not in cached_sites:
         with site_create_lock:
-            file = open("site.cache" + iteration, "r")
+            file = open("./cache/site.cache" + iteration, "r")
             cached_sites = file.read()
             file.close()
             if station_id not in cached_sites:
                 result = create_site(fname, project_id, site_id, station_name)
                 if result is not None and "already use in project namepsace" not in result and "already exists" not in result:
                     logger.error("Unable to create site/instruments:")
-                    logger.error("file: %s", fname)
+                    logger.error("file link: %s", file_link)
                     logger.error("error: %s", result)
                     return False
 
@@ -240,19 +240,19 @@ def process_file(file_link):
 
     # Check if variables exist, else create variables
     if exists("./var.cache" + iteration + file_type):
-        file = open("var.cache" + iteration + file_type, "r")
+        file = open("./cache/var.cache" + iteration + file_type, "r")
     else:
-        file = open("var.cache" + iteration + file_type, "w")
+        file = open("./cache/var.cache" + iteration + file_type, "w")
         json.dump({}, file)
         file.close()
-        file = open("var.cache"+iteration + file_type, "r")
+        file = open("./cache/var.cache"+iteration + file_type, "r")
     
     cached_vars = json.load(file)
     file.close()
 
     if station_id not in cached_vars.keys():
         with var_create_lock:
-            file = open("var.cache"+iteration + file_type, "r")
+            file = open("./cache/var.cache"+iteration + file_type, "r")
             cached_vars = json.load(file)
             file.close()
             if station_id not in cached_vars.keys():
@@ -260,14 +260,14 @@ def process_file(file_link):
                 result = create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units)
                 if result is not None:
                     logger.error("Unable to create variable:")
-                    logger.error("file: %s", fname)
+                    logger.error("file link: %s", file_link)
                     logger.error("error: %s", result)
                     return False
     elif file_type == "MetData" and station_id in cached_vars.keys():
         file_vars = set(list_vars[2:])
         if file_vars.difference(set(cached_vars[station_id])):
             with var_create_lock:
-                file = open("var.cache"+iteration + file_type, "r")
+                file = open("./cache/var.cache"+iteration + file_type, "r")
                 cached_vars = json.load(file)
                 file.close()
                 if file_vars.difference(set(cached_vars[station_id])):
@@ -275,7 +275,7 @@ def process_file(file_link):
                     result = create_variable(fname, project_id, site_id, instrument_id, list_vars, list_units)
                     if result is not None:
                         logger.error("Unable to create variable:")
-                        logger.error("file: %s", fname)
+                        logger.error("file link: %s", file_link)
                         logger.error("error: %s", result)
                         return False
 
@@ -317,7 +317,7 @@ def process_file(file_link):
         if hasattr(e, 'message'):
             msg = e.message
         logger.error("Unable to create measurement:")
-        logger.error("file: %s", fname)
+        logger.error("file link: %s", file_link)
         logger.error("error: %s", e)
         return False
     
@@ -449,12 +449,19 @@ if __name__ == "__main__":
             logger.error("error: %s", msg)
             sys.exit(-1)
 
+    # Checks if logs and cache directory exists otherwise create them
+    if not exists("./logs"):
+        makedirs("./logs")
+
+    if not exists("./cache"):
+        makedirs("./cache")
+
 
     start_date = "2023-07-24"
     end_date = "2023-07-25"
 
     start_date_obj = date.fromisoformat(start_date)
-    end_date_obj = date.fromisoformat(start_date)
+    end_date_obj = date.fromisoformat(end_date)
 
     current_date = start_date_obj
 

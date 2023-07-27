@@ -1,2 +1,5 @@
 data
 logs
+cache
+site.*
+var.*
