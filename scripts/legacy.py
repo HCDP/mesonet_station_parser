@@ -4,7 +4,7 @@ from tapipy.tapis import Tapis
 import logging
 from logging import FileHandler
 from os.path import basename, isfile, join, exists
-from os import listdir, makedirs
+from os import listdir, makedirs, getcwd
 import pandas as pd
 import time
 import concurrent.futures
@@ -46,7 +46,8 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
                                                         "latitude": latitude, 
                                                         "longitude": longitude,
                                                         "elevation": elevation,
-                                                        "description": site_name}])
+                                                        "description": site_name,
+                                                        "metadata": {"station_name": site_name}}])
     except Exception as e:
         msg = e
         if hasattr(e, 'message'):
@@ -85,7 +86,7 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
             msg = e.message
         return msg 
 
-    with open("../cache/site.cache" + iteration, "a") as file:
+    with open("./cache/site.cache" + iteration, "a") as file:
         file.write(f"{station_id}\n")
 
     return None
@@ -134,15 +135,15 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
                                                  request_body=request_body)
         
         file_type = inst_id.split("_")[-1]
-        with open("../cache/var.cache"+ iteration + file_type, "r") as var_file:
+        with open("./cache/var.cache"+ iteration, "r") as var_file:
             cached_vars = json.load(var_file)
 
-            if station_id in cached_vars.keys():
-                cached_vars[station_id].extend(list_vars[2:])
+            if station_id in cached_vars[file_type].keys():
+                cached_vars[file_type][station_id].extend(list_vars[2:])
             else:
-                cached_vars[station_id] = list_vars[2:]
-        
-        with open("../cache/var.cache"+ iteration + file_type,"w") as var_file:
+                cached_vars[file_type][station_id] = list_vars[2:]
+ 
+        with open("./cache/var.cache"+ iteration,"w") as var_file:
             json.dump(cached_vars, var_file)
         
         return None
@@ -206,17 +207,14 @@ def process_file(file_link):
 
     # Check if site exists, else create site and instruments
 
-    if exists("./site.cache" + iteration):
-        file = open("../cache/site.cache" + iteration, "r")
-    else:
-        file = open("../cache/site.cache" + iteration, "w+")
+    file = open("./cache/site.cache" + iteration, "r")
     
     cached_sites = file.read()
     file.close()
 
     if station_id not in cached_sites:
         with site_create_lock:
-            file = open("../cache/site.cache" + iteration, "r")
+            file = open("./cache/site.cache" + iteration, "r")
             cached_sites = file.read()
             file.close()
             if station_id not in cached_sites:
@@ -236,24 +234,27 @@ def process_file(file_link):
         return False
 
     # Grabbing the list of variables from the file
-    list_vars = inst_data_file[1].strip().replace("\"", "").split(",")
+    try:
+        list_vars = inst_data_file[1].strip().replace("\"", "").split(",")
+    except Exception as e:
+        logger.error("Unable parse out variables:")
+        logger.error("file_link: %s", file_link)
+        logger.error("error: %s", e)
+        logger.error("inst_data_file: %s", inst_data_file)
+        return False
 
     # Check if variables exist, else create variables
-    if exists("./var.cache" + iteration + file_type):
-        file = open("../cache/var.cache" + iteration + file_type, "r")
-    else:
-        file = open("../cache/var.cache" + iteration + file_type, "w")
-        json.dump({}, file)
-        file.close()
-        file = open("../cache/var.cache"+iteration + file_type, "r")
-    
+    file = open("./cache/var.cache" + iteration, "r")
+ 
     cached_vars = json.load(file)
+    cached_vars = cached_vars[file_type]
     file.close()
 
     if station_id not in cached_vars.keys():
         with var_create_lock:
-            file = open("../cache/var.cache"+iteration + file_type, "r")
+            file = open("./cache/var.cache"+iteration, "r")
             cached_vars = json.load(file)
+            cached_vars = cached_vars[file_type]
             file.close()
             if station_id not in cached_vars.keys():
                 list_units = inst_data_file[2].strip().replace("\"", "").split(",")
@@ -267,8 +268,9 @@ def process_file(file_link):
         file_vars = set(list_vars[2:])
         if file_vars.difference(set(cached_vars[station_id])):
             with var_create_lock:
-                file = open("../cache/var.cache"+iteration + file_type, "r")
+                file = open("./cache/var.cache"+iteration, "r")
                 cached_vars = json.load(file)
+                cached_vars = cached_vars[file_type]
                 file.close()
                 if file_vars.difference(set(cached_vars[station_id])):
                     list_units = inst_data_file[2].strip().replace("\"", "").split(",")
@@ -288,8 +290,7 @@ def process_file(file_link):
     # Parsing the measurements for each variable
     variables = []
     for i in range(4, len(inst_data_file)):
-        measurements = inst_data_file[i].strip().replace(
-            "\"", "").split(",")
+        measurements = inst_data_file[i].strip().replace("\"", "").split(",")
         measurement = {}
         measurement_time = measurements[0].split(" ")
 
@@ -353,12 +354,20 @@ def get_file(date: str, api_token: str) -> list:
 
 
 if __name__ == "__main__":
-# Argument parser
+    
+    # Checks if logs and cache directory exists otherwise create them
+    if not exists("./logs"):
+        makedirs("./logs")
+
+    if not exists("./cache"):
+        makedirs("./cache")
+
     parser = argparse.ArgumentParser(
         prog="legacy.py",
         description=""
     )
 
+    # Argument parser
     # TODO: might remove for final prod
     parser.add_argument("iteration", help="set the iteration number for project version")
     parser.add_argument("-v", "--verbose", action="store_true", help="turn on verbose mode")
@@ -373,7 +382,7 @@ if __name__ == "__main__":
 
     # Logger for errors
     level = logging.ERROR
-    file_handler = FileHandler('../logs/legacy_out.err')
+    file_handler = FileHandler('./logs/legacy_out.err')
     logger = logging.getLogger('Logger1')
     logger.setLevel(level)
     formatter = logging.Formatter('[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
@@ -384,7 +393,7 @@ if __name__ == "__main__":
     level = logging.INFO
     logger2 = logging.getLogger('Logger2')
     logger2.setLevel(level)
-    file_handler2 = FileHandler('../logs/legacy_out.log')
+    file_handler2 = FileHandler('./logs/legacy_out.log')
     formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
     file_handler2.setFormatter(formatter)
     logger2.addHandler(file_handler2)
@@ -449,15 +458,34 @@ if __name__ == "__main__":
             logger.error("error: %s", msg)
             sys.exit(-1)
 
-    # Checks if logs and cache directory exists otherwise create them
-    if not exists("../logs"):
-        makedirs("../logs")
+     
+    site_cache = open("./cache/site.cache" + iteration, "w")
+    var_cache = open("./cache/var.cache" + iteration, "w")
+    list_sites = []
 
-    if not exists("../cache"):
-        makedirs("../cache")
+    try:
+        list_sites = permitted_client.streams.list_sites(project_id=project_id)
+    except Exception as e:
+        logger.error("Unable to initialize cache files")
 
+    if len(list_sites) != 0:
+        initial_json = {"MetData": {}, "RFMin": {}, "SysInfo": {}, "MinMax": {}}
 
-    start_date = "2023-02-02"
+        for site in list_sites:
+            station_id = site.site_id.split("_")[0]
+            site_cache.write(f"{station_id}\n")
+
+            for instrument in site.instruments:
+                if hasattr(instrument, 'variables'):
+                    file_type = instrument.inst_id.split("_")[-1]
+                    initial_json[file_type][station_id] = list({var.var_id for var in instrument.variables})
+
+        json.dump(initial_json, var_cache)
+
+    site_cache.close()
+    var_cache.close()
+
+    start_date = "2023-07-25"
     end_date = "2023-07-25"
 
     start_date_obj = date.fromisoformat(start_date)
@@ -477,10 +505,11 @@ if __name__ == "__main__":
 
     while current_date <= end_date_obj:
         logger2.info("Date: %s", str(current_date.isoformat()))
-        file_links = get_file(str(current_date.isoformat()), api_token)
+        # file_links = get_file(str(current_date.isoformat()), api_token)
+        file_links = ["https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/hawaii/2023/08/07/0151_ParkHQ_MetData.dat"]
 
         # Define the number of parallel workers
-        num_workers = 6
+        num_workers = 1
         logger2.info("Progress: %d/%d", count, len(file_links))
         # Call the function to process files in parallel
         results = process_files_in_parallel(file_links, num_workers)
