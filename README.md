@@ -16,6 +16,6 @@ The *standard_var* folder contains csv files that maps the raw shortnames of the
 
 ## TODO List
 - [ ] Ensure that standardize_variable function is working properly (still waiting for HCDP folks to decide on a more permanent variable naming convention)
-- [ ] Move username, password, data_dir into a config file for easier editability
+- [ ] Move username, password, data_dir, (start_date and end_date for legacy.py) into a config file for easier editability
 - [ ] Potentially add a field in the config file to enable parallelism and define number of workers
 - [ ] For production use, remove iteration counter from project_id, site_id and inst_id
