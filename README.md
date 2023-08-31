@@ -9,3 +9,6 @@ The repository contains 2 primary script files that achieve this.
 - legacy.py
   - This file downloads past data by sending API requests to the ikewai gateway, thus allowing us to parse past data into Tapis streams-api.
   - You are able to provide a start_date and an end_date range for what files you want to parse.
+ 
+The *standard_var* folder contains csv files that maps the raw shortnames of the stations' data to the standardized shortnames
+- Note: the csv files are not extremely accurate as the raw shortnames for the stations' data changes occasionally.
