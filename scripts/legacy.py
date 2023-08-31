@@ -505,8 +505,7 @@ if __name__ == "__main__":
 
     while current_date <= end_date_obj:
         logger2.info("Date: %s", str(current_date.isoformat()))
-        # file_links = get_file(str(current_date.isoformat()), api_token)
-        file_links = ["https://ikeauth.its.hawaii.edu/files/v2/download/public/system/ikewai-annotated-data/HCDP/raw/hawaii/2023/08/07/0151_ParkHQ_MetData.dat"]
+        file_links = get_file(str(current_date.isoformat()), api_token)
 
         # Define the number of parallel workers
         num_workers = 1
