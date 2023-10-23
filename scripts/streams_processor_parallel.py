@@ -81,7 +81,7 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
             msg = e.message
         return msg 
 
-    with open("site.cache" + iteration, "a") as file:
+    with open("site.cache", "a") as file:
         file.write(f"{station_id}\n")
 
     return None
@@ -193,17 +193,17 @@ def process_file(data_path):
 
     # Check if site exists, else create site and instruments
 
-    if exists("./site.cache" + iteration):
-        file = open("site.cache" + iteration, "r")
+    if exists("./site.cache"):
+        file = open("site.cache", "r")
     else:
-        file = open("site.cache" + iteration, "w+")
+        file = open("site.cache", "w+")
     
     cached_sites = file.read()
     file.close()
 
     if station_id not in cached_sites:
         with site_create_lock:
-            file = open("site.cache" + iteration, "r")
+            file = open("site.cache", "r")
             cached_sites = file.read()
             file.close()
             if station_id not in cached_sites:
@@ -359,16 +359,22 @@ if __name__ == "__main__":
     )
 
     # TODO: might remove for final prod
-    parser.add_argument(
-        "iteration", help="set the iteration number for project version")
+    parser.add_argument("-i", "--iteration", help="set the iteration number for project version")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="turn on verbose mode")
+    parser.add_argument("-d","--data_dir", help="provide the path to the directory with the mesonet stations files")
+    parser.add_argument("-pid","--project_id",help="provide the Tapis Streams Project ID to parse the data into")
+    parser.add_argument("-t","--tenant", help="Tapis tenant to use like dev")
+    parser.add_argument("-tu","--tapis_url",help="Tapis base URL to use like https://dev.develop.tapis.io")
+    parser.add_argument("-th","--threads",type=int, help="Number of threads to use to process the mesonet files in parallel")
+    parser.add_argument("-u","--username",help="Tapis username that was read/write access to the project and data")
+    parser.add_argument("-p","--password",help="The Tapis password for the username provided")
 
     args = parser.parse_args()
 
     # Set Tapis Tenant and Base URL
-    tenant = "dev"
-    base_url = 'https://' + tenant + '.develop.tapis.io'
+    tenant = args.tenant #"dev"
+    base_url = args.tapis_url #'https://' + tenant + '.develop.tapis.io'
 
 
     # Logger for errors
@@ -395,8 +401,8 @@ if __name__ == "__main__":
         logger.addHandler(stdout_handler)
         logger2.addHandler(stdout_handler)
 
-    permitted_username = "testuser2"
-    permitted_user_password = "testuser2"
+    permitted_username = args.username #"testuser2"
+    permitted_user_password = args.password #"testuser2"
 
     # iteration of test
     # TODO: can be removed for final revision
@@ -427,7 +433,7 @@ if __name__ == "__main__":
         exit(-1)
 
     # TODO: remove iteration and _test_
-    project_id = 'Mesonet_prod_test_' + iteration
+    project_id = args.project_id + '_' + iteration
 
     project_exist = False
     # Checks if project exists (can be removed once code is finalize)
@@ -448,7 +454,7 @@ if __name__ == "__main__":
             logger.error("error: %s", msg)
             exit(-1)
 
-    data_dir = "E:\GitHub\mesonet_station_parser\data\\temp"
+    data_dir = args.data_dir #"E:\GitHub\mesonet_station_parser\data\\temp"
     # data_dir = "/mnt/c/Users/Administrator/ikewai_data_upload/streams_processor/testing/data"
 
     # Count how many files were parsed into streams-api vs total num of files
@@ -460,7 +466,7 @@ if __name__ == "__main__":
     site_create_lock = threading.Lock()
 
     # Define the number of parallel workers
-    num_workers = 6
+    num_workers = args.threads #6
     logger2.info("Progress: %d/%d", count, len(listdir(data_dir)))
     # Call the function to process files in parallel
     results = process_files_in_parallel(data_dir, num_workers)
