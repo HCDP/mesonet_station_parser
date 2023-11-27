@@ -91,19 +91,17 @@ def standardized_vars(station_id: str, list_vars: list) -> list:
     conversion_dir = "./standard_var"
     standard = []
    
-    if station_id in ["0119", "0152", "0153"]:
-        df = pd.read_csv(conversion_dir + "/119,152,153.csv")
-    elif station_id in ["0141", "0143", "0151", "0154", "0281", "0282", "0283", "0286", "0287", "0288", "0501", "0521", "0602"]:
+    if station_id in ["0119","0141", "0143", "0145", "0151", "0152", "0153", "0154", "0201", "0281", "0282", "0283", "0286", "0287", "0288", "0501", "0502", "0521",, "0601", "0602"]:
         df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
-    elif station_id in ["0502", "0601"]:
-        df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
-        if sorted(df['Raw data column name'].tolist()) != sorted(list_vars[2:]):
-            df = pd.read_csv(conversion_dir + "/Universal.csv")
+    # elif station_id in ["0502", "0601"]:
+    #     df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
+    #     if sorted(df['alias_nagitme'].tolist()) != sorted(list_vars[2:]):
+    #         df = pd.read_csv(conversion_dir + "/Universal.csv")
     else:
         df = pd.read_csv(conversion_dir + "/Universal.csv")
 
-    standard = df['Standard short name'].tolist()
-    raw = df['Raw data column name'].tolist()
+    standard = df['standard_name'].tolist()
+    raw = df['alias_name'].tolist()
 
     return {raw[i]: standard[i] for i in range(len(standard))}
 
