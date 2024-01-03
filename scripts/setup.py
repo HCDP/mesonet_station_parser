@@ -84,7 +84,7 @@ if __name__ == "__main__":
         print(f"Error: {msg}")
         sys.exit(-1)
 
-    project_id = "Mesonet_setup_test_2"
+    project_id = "test-p2"
 
     project_exist = False
     # Checks if project exists (can be removed once code is finalize)

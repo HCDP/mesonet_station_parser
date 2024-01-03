@@ -90,9 +90,11 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
 def standardized_vars(station_id: str, list_vars: list) -> list:
     conversion_dir = "./standard_var"
     standard = []
-   
-    if station_id in ["0119","0141", "0143", "0145", "0151", "0152", "0153", "0154", "0201", "0281", "0282", "0283", "0286", "0287", "0288", "0501", "0502", "0521",, "0601", "0602"]:
-        df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
+    logger2.info(station_id[1:])  
+    if station_id in ["0119","0141", "0143", "0145", "0151", "0152", "0153", "0154", "0201", "0281", "0282", "0283", "0286", "0287", "0288", "0501", "0502", "0521", "0601", "0602"]:
+        sf = pd.read_csv(conversion_dir + "/0" + station_id[1:] + ".csv")
+        lf = pd.read_csv(conversion_dir+"/Universal.csv")
+        df = pd.concat([sf, lf], ignore_index=True)
     # elif station_id in ["0502", "0601"]:
     #     df = pd.read_csv(conversion_dir + "/" + station_id[1:] + ".csv")
     #     if sorted(df['alias_nagitme'].tolist()) != sorted(list_vars[2:]):
@@ -190,7 +192,8 @@ def process_file(data_path):
     instrument_id = site_id + "_" + file_type
 
     # Check if site exists, else create site and instruments
-
+    logger2.info(station_id)
+    logger2.info(station_name)
     if exists("./site.cache"):
         file = open("site.cache", "r")
     else:
@@ -443,6 +446,7 @@ if __name__ == "__main__":
 
     if project_exist == False:
         try:
+            logger.error("trying to create PROJECT")
             permitted_client.streams.create_project(
                 project_name=project_id, owner="testuser2", pi="testuser2")
         except Exception as e:
