@@ -122,7 +122,7 @@ def create_variable(fname: str, project_id: str, site_id: str, inst_id: str, lis
             request_body.append({
                 "var_id": standard_var[list_vars[i]],
                 "var_name": standard_var[list_vars[i]],
-                "units": list_units[i]
+                "unit": list_units[i]
             })
 
         # Create variables in bulk
@@ -186,8 +186,8 @@ def process_file(data_path):
         logger.error("file: %s", fname)
         return False
 
-    site_id = fname_splitted[0] + "_" + iteration  # STATION ID
     station_id = fname_splitted[0]
+    site_id = station_id
     station_name = fname_splitted[1] # Station Name
     instrument_id = site_id + "_" + file_type
 
