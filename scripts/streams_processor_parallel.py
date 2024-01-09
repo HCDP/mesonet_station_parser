@@ -110,6 +110,7 @@ def create_variable(project_id: str, site_id: str, inst_id: str, unit_map: dict)
                 "var_id": var,
                 "var_name": var,
                 "units": unit_map[var]
+                "unit": list_units[i]
             })
 
         # Create variables in bulk
@@ -147,7 +148,7 @@ def process_file(data_path):
     file_type = fname_splitted[len(fname_splitted) - 1].split(".")[0]
     
     station_id = fname_splitted[0]
-    site_id = station_id + "_" + iteration  # STATION ID
+    site_id = station_id
     
     station_name = fname_splitted[1] # Station Name
     instrument_id = site_id + "_" + file_type
