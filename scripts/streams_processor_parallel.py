@@ -204,7 +204,7 @@ def process_file(data_path):
     
     cached_sites = file.read()
     file.close()
-
+    logger2.info(cached_sites)
     if station_id not in cached_sites:
         with site_create_lock:
             file = open("site.cache", "r")
