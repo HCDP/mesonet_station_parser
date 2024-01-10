@@ -42,7 +42,10 @@ def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bo
                                                         "latitude": latitude, 
                                                         "longitude": longitude,
                                                         "elevation": elevation,
-                                                        "description": site_name}])
+                                                        "description": site_name,
+                                                        "metadata": {
+                                                            "station_name": site_name
+                                                        }}])
     except Exception as e:
         msg = e
         if hasattr(e, 'message'):
