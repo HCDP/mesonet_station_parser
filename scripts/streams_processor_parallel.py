@@ -31,6 +31,7 @@ def get_location_info(station_id: str) -> tuple:
     return (20, -158, 0) # somewhere left of Hawaii island in the ocean
 
 def create_site(fname: str, project_id: str, site_id: str, site_name: str) -> bool:
+    logger.info(f"Trying to create site {site_id}")
     try:
         station_id = site_id.split("_")[0] # can be removed for final prod
         (latitude, longitude, elevation) = get_location_info(station_id=station_id)
@@ -190,7 +191,7 @@ def process_file(data_path):
         return False
 
     station_id = fname_splitted[0]
-    site_id = station_id
+    site_id = station_id + "_" + iteration
     station_name = fname_splitted[1] # Station Name
     instrument_id = site_id + "_" + file_type
 
