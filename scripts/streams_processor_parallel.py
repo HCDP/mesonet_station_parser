@@ -32,110 +32,146 @@ def get_location_info(station_id: str) -> tuple:
 
     # Check if station exist in csv
     if station_metadata is not None:
-        logger.info("Station's metadata for %s found", station_id)
         latitude = float(station_metadata["lat"])
         longitude = float(station_metadata["lng"])
         elevation = float(station_metadata["elevation"])
-
-        logger.info("%d %d %d", latitude, longitude, elevation)
         location_info = (latitude, longitude, elevation)
     else:
         logger.info("Station's meta data for %s not found", station_id)
     return location_info
 
+def check_create_project(project_id: str, username: str, pi: str, cache):
+    if not project_id in cache:
+        create_project(project_id, username, pi)
+
 def create_project(project_id: str, username: str, pi: str):
-    exists = True
     try:
-            permitted_client.streams.get_project(project_id = project_id)
-            project_exist = True
-        except Exception as e:
-            pass
-
-        if not project_exist:
-            try:
-                logger.error("trying to create PROJECT")
-                permitted_client.streams.create_project(
-                    project_name=project_id, owner=args.username, pi=args.username)
-            except Exception as e:
-                handle_error(e)
-
-def create_instrument(project_id: str, site_id: str, site_name: str, inst_id: str):
-    err_msg = None
-    try:
-        permitted_client.streams.get_instrument(project_id = project_id, side_id = site_id, inst_id = inst_id)
-    except tapipy.errors.InvalidInputError:
-        try:
-            permitted_client.streams.create_instrument(project_id=project_id,
-                                                            site_id=site_id,
-                                                            request_body=[{
-                                                                "inst_name": inst_id,
-                                                                "inst_id": inst_id,
-                                                                "inst_description": "MetData for " + site_id + "_" + site_name
-                                                                }])
-        except Exception as e:
-            err_msg = get_msg(e)
-    except Exception as e:
-        err_msg = get_msg(e)
-    return err_msg
-
-def create_site(project_id: str, site_id: str, site_name: str, station_id: str) -> bool:
-    err_msg = None
-    try:
-        permitted_client.streams.get_site(project_id = project_id, side_id = site_id)
-    except tapipy.errors.InvalidInputError:
-        (latitude, longitude, elevation) = get_location_info(station_id = station_id)
-        try:
-            permitted_client.streams.create_site(project_id=project_id,
-                                                        request_body=[{
-                                                            "site_name": site_id,
-                                                            "site_id": site_id,
-                                                            "latitude": latitude, 
-                                                            "longitude": longitude,
-                                                            "elevation": elevation,
-                                                            "description": site_name}])
-        except Exception as e:
-            err_msg = get_msg(e)
-    except Exception as e:
-        err_msg = get_msg(e)
-    return err_msg
+        permitted_client.streams.get_project(project_id = project_id)
+    except InvalidInputError:
+        permitted_client.streams.create_project(project_name = project_id, owner = username, pi = username)
 
 
+def check_create_sites(project_id, site_data, cache):
+    unknown_site_data = {}
+    for site in site_data:
+        if not site in cache:
+            unknown_site_data[site] = site_data[site]
+    if len(unknown_site_data) > 0:
+        create_sites(project_id, unknown_site_data)
 
-def create_variable(project_id: str, site_id: str, inst_id: str, unit_map: dict):
-    try:
+
+def create_sites(project_id: str, unknown_site_data) -> bool:
+    result = permitted_client.streams.list_sites(project_id = project_id, side_id = site_id)
+    for item in result:
+        if item.site_id in unknown_site_data:
+            del unknown_site_data[item.site_id]
+    if len(unknown_site_data) > 0:
         request_body = []
-
-        for var in unit_map:
+        for site in unknown_site_data:
+            (station_id, site_name) = unknown_site_data[site]
+            (latitude, longitude, elevation) = get_location_info(station_id = station_id)
             request_body.append({
-                "var_id": var,
-                "var_name": var,
-                "units": unit_map[var]
-                "unit": list_units[i]
+                "site_name": site,
+                "site_id": site,
+                "latitude": latitude, 
+                "longitude": longitude,
+                "elevation": elevation,
+                "description": site_name
             })
+        permitted_client.streams.create_site(project_id = project_id, request_body = request_body)
 
-        # Create variables in bulk
-        result = permitted_client.streams.create_variable(project_id=project_id,
-                                                 site_id=site_id,
-                                                 inst_id=inst_id,
-                                                 request_body=request_body)
+def check_create_instruments(project_id, site_id, site_name, file_type, instruments, cache):
+    unknown_instruments = set()
+    for instrument in instruments:
+        if not instrument in cache:
+            unknown_instruments.add(instrument)
+    if len(unknown_instruments) > 0:
+        create_instruments(project_id, site_id, site_name, file_type, unknown_instruments)
+
+def create_instruments(project_id, site_id, site_name, file_type, unknown_instruments):
+    result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
+    for item in result:
+        if item.inst_id in unknown_instruments:
+            unknown_instruments.remove(item.inst_id)
+    
+    if len(unknown_instruments) > 0:
+        request_body = [{
+            "inst_name": instrument,
+            "inst_id": instrument,
+            "inst_description": f"{file_type} for {site_id}, {site_name}"
+        } for instrument in unknown_instruments]
+        permitted_client.streams.create_instrument(project_id = project_id, site_id = site_id, request_body = request_body)
+
+def check_create_variables(project_id, site_id, inst_id, variables, units, cache):
+    #create unit map by zipping variables and units
+    variable_unit_map = {variables[i]: units[i] for i in range(len(variables))}
+    cache_set = set(cache)
+    unknown_variable_unit_map = {}
+    for variable in variable_unit_map:
+        if not variable in cache_set:
+            unknown_variable_unit_map[variable] = variable_unit_map[variable]
+    if len(unknown_variable_unit_map) > 0:
+        create_variables(project_id, site_id, inst_id, unknown_variable_unit_map)
+
+
+def create_variables(project_id, site_id, inst_id, unknown_variable_unit_map):
+    result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = instrument_id)
+    for item in result:
+        if item.var_id in unknown_variable_unit_map:
+            del unknown_variable_unit_map[item.var_id]
+    
+    if len(unknown_variable_unit_map) > 0:
+        request_body = [{
+            "var_id": variable,
+            "var_name": variable,
+            "unit": unknown_variable_unit_map[variable]
+        } for variable in unknown_variable_unit_map]
+        permitted_client.streams.create_variable(project_id = project_id, site_id = site_id, inst_id = inst_id, request_body = request_body)
         
-        return None
-    except Exception as e:
-        msg = e
-        if hasattr(e, 'message'):
-            msg = e.message
-        return msg 
+
+def create_measurements(instrument_id, measurements):
+    permitted_client.streams.create_measurement(inst_id = instrument_id, vars = measurements)
 
 
-# Function that will be executed by the threads
-def process_file(data_path):
+def create_site_and_instrument(project_id, site_id, instrument_id, station_id, station_name, project_cache):
+    if not site_id in project_cache:
+        create_site(project_id, site_id, station_id, station_name, project_cache)
+        project_cache[site_id] = {}
+    site_cache = project_cache[site_id]
+    if not instrument_id in site_cache:
+        create_instrument(project_id, site_id, instrument_id, site_cache)
+        site_cache[instrument_id] = {}
+    instrument_cache = site_cache[instrument_id]
+    return instrument_cache
 
-    fname = basename(data_path)
+
+def process_station_file(project_id: str, station_id: str, station_name: str, station_file_data):
     global count
     global project_cache
+
+    file_type = station_file_data["type"]
+    fname = station_file_data["fname"]
+    file = station_file_data["path"]
+
+    #switch to simplified form when alias map stripped out (may have to process exceptions)
+    ftype_alias_map = alias_map.get(file_type) or {}
+    universal_alias_map = ftype_alias_map.get("universal") or {}
+    id_alias_map = ftype_alias_map.get(station_id) or {}
+    #for master variable list in file need to find variable names not in this map and use reflexive
+    file_alias_map = {**universal_alias_map, **id_alias_map}
+
+    site_id = station_id
+    instrument_id = f"{station_id}_{file_type}"
+
+    create_site_and_instrument(project_id, site_id, instrument_id, station_id, station_name, project_cache)
+
+
+
+    # fname = basename(data_path)
+    
     # ... (processing logic for the file)
     # Tapis Structure:
-    #   Project (MesoNet) -> Site (InstID+Name) -> Instrument (MetData/SoilData, MinMax, RFMin, SysInfo) -> Variables -> Measurements
+    #   Project (MesoNet) -> Site (InstID+Name) -> Instrument (MetData, MinMax, RFMin, SysInfo, etc) -> Variables -> Measurements
     # site_id:
     #   <STATION ID>
     # inst_id:
@@ -147,23 +183,18 @@ def process_file(data_path):
     #get last part of fname and strip out file extension
     file_type = fname_splitted[len(fname_splitted) - 1].split(".")[0]
     
-    station_id = fname_splitted[0]
-    site_id = station_id
+    
+    
     
     station_name = fname_splitted[1] # Station Name
     instrument_id = site_id + "_" + file_type
 
-    #switch to simplified form when alias map stripped out (may have to process exceptions)
-    ftype_alias_map = alias_map.get(file_type) or {}
-    universal_alias_map = ftype_alias_map.get("universal") or {}
-    id_alias_map = ftype_alias_map.get(station_id) or {}
+    
 
-    #for master variable list in file need to find variable names not in this map and use reflexive
-    file_alias_map = {**universal_alias_map, **id_alias_map}
+    
 
     # Check if site exists, else create site and instruments
-    logger2.info(station_id)
-    logger2.info(station_name)
+    
 
     site_cache = None
     with site_create_lock:
@@ -296,6 +327,26 @@ def process_file(data_path):
         
         return True
 
+
+
+
+# Function that will be executed by the threads
+def process_station_files(station_file_group):
+    station_id = station_file_group["id"]
+    station_name = station_file_group["name"]
+
+    logger2.info(station_id)
+    logger2.info(station_name)
+
+    for let station_file_data in station_file_group:
+        process_station_file(station_id, station_name, station_file_data)
+        
+
+
+    
+
+
+
 # Define a function that handles the parallel processing of all files
 def process_files_in_parallel(data_dir, num_workers):
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -401,13 +452,9 @@ if __name__ == "__main__":
         cache[args.tapis_url] = url_cache
     tenant_cache = url_cache.get(args.tenant)
     if tenant_cache is None:
-        tenant_cache = {
-            "project_cache": {},
-            #instruments are global not project based
-            "global_site_cache": []
-        }
+        tenant_cache = {}
         url_cache[args.tenant] = tenant_cache
-    project_cache = tenant_cache["project_cache"].get(project_id)
+    project_cache = tenant_cache.get(project_id)
 
     #if project not in cache check if it exists and if it doesn't attempt to create it
     if project_cache is None:
