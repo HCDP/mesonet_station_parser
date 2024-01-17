@@ -40,15 +40,15 @@ def get_location_info(station_id: str) -> tuple:
         logger.info("Station's meta data for %s not found", station_id)
     return location_info
 
-def check_create_project(project_id: str, username: str, pi: str, cache):
+def check_create_project(project_id: str, owner: str, pi: str, cache):
     if not project_id in cache:
-        create_project(project_id, username, pi)
+        create_project(project_id, owner, pi)
 
-def create_project(project_id: str, username: str, pi: str):
+def create_project(project_id: str, owner: str, pi: str):
     try:
         permitted_client.streams.get_project(project_id = project_id)
     except InvalidInputError:
-        permitted_client.streams.create_project(project_name = project_id, owner = username, pi = username)
+        permitted_client.streams.create_project(project_name = project_id, owner = owner, pi = pi)
 
 
 def check_create_sites(project_id, site_data, cache):
@@ -334,27 +334,53 @@ def process_station_file(project_id: str, station_id: str, station_name: str, st
 def process_station_files(station_file_group):
     station_id = station_file_group["id"]
     station_name = station_file_group["name"]
+    station_file_data = station_file_group["files"]
 
     logger2.info(station_id)
     logger2.info(station_name)
 
-    for let station_file_data in station_file_group:
-        process_station_file(station_id, station_name, station_file_data)
+    for data in station_file_data:
+        (file_type, file_name, path) = data
+        process_station_file(station_id, station_name, file_type, file_name, path)
         
 
 
     
-
+def process_file_name(file_name):
+    #0115_Piiholo_MetData.dat
+    split = file_name.split("_")
+    id = split[0]
+    name = split[1]
+    file_type = split[2].split(".")[0]
+    return (id, name, file_type)
 
 
 # Define a function that handles the parallel processing of all files
 def process_files_in_parallel(data_dir, num_workers):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        # Get a list of all the file paths in the data directory
-        file_paths = [join(data_dir, fname) for fname in listdir(data_dir) if isfile(join(data_dir, fname)) and fname.endswith(".dat")]
-
+    dir_content = listdir(data_dir)
+    logger2.info("Progress: %d/%d", count, len(dir_content))
+    file_groups = {}
+    site_data = {}
+    for file in listdir():
+        path = join(data_dir, file)
+        if isfile(path) and file.endswith(".dat"):
+            (station_id, station_name, file_type) = process_file_name(file)
+            site_id = station_id
+            group = file_groups.get(station_id)
+            if group is None:
+                group = {
+                    "station_id": station_id,
+                    "station_name": station_name,
+                    "site_id": site_id,
+                    "files": []
+                }
+                file_groups[station_id] = group
+            site_data[site_id] = (station_id, station_name)
+            group["files"].append((file_type, file, path))
+    check_create_sites(project_id, site_data, project_cache)
+    with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         # Submit the processing of each file to the ThreadPoolExecutor
-        results = list(executor.map(process_file, file_paths))
+        results = list(executor.map(process_station_files, file_groups.items()))
 
     return results
 
@@ -455,32 +481,11 @@ if __name__ == "__main__":
         tenant_cache = {}
         url_cache[args.tenant] = tenant_cache
     project_cache = tenant_cache.get(project_id)
-
-    #if project not in cache check if it exists and if it doesn't attempt to create it
     if project_cache is None:
-        project_exist = False
-        # Checks if project exists (can be removed once code is finalize)
-        try:
-            permitted_client.streams.get_project(project_id=project_id)
-            project_exist = True
-        except Exception as e:
-            pass
-
-        if not project_exist:
-            try:
-                logger.error("trying to create PROJECT")
-                permitted_client.streams.create_project(
-                    project_name=project_id, owner=args.username, pi=args.username)
-            except Exception as e:
-                handle_error(e)
-        #add to the cache
         project_cache = {}
         tenant_cache[project_id] = project_cache
 
-    
-    
-
-    data_dir = args.data_dir
+    check_create_project(project_id, args.username, args.username, project_cache)
 
     # Count how many files were parsed into streams-api vs total num of files
     count = 0
@@ -505,15 +510,12 @@ if __name__ == "__main__":
 
     # Initialize the lock
     count_lock = threading.Lock()
-    var_create_lock = threading.Lock()
-    site_create_lock = threading.Lock()
-    instrument_create_lock = threading.Lock()
 
     # Define the number of parallel workers
-    num_workers = args.threads #6
-    logger2.info("Progress: %d/%d", count, len(listdir(data_dir)))
+    num_workers = args.threads
+    
     # Call the function to process files in parallel
-    results = process_files_in_parallel(data_dir, num_workers)
+    results = process_files_in_parallel(args.data_dir, num_workers)
 
     #write out cache file if specified
     if args.cache_file is not None:
@@ -523,4 +525,4 @@ if __name__ == "__main__":
     end_time = time.time()
     exec_time = end_time - start_time
 
-    logger2.info("Files parsing complete: success: %d, failed: %d, time: %.2f seconds", count, len(listdir(data_dir)) - count, exec_time)
+    logger2.info("Files parsing complete: success: %d, failed: %d, time: %.2f seconds", count, len(listdir(args.data_dir)) - count, exec_time)
