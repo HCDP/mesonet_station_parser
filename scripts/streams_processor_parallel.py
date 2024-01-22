@@ -14,6 +14,7 @@ from urllib.request import urlopen
 import csv
 import typing
 from typing import TypeAlias, Any
+import traceback
 
 VariableCache: TypeAlias = list[str]
 InstrumentCache: TypeAlias = typing.Dict[str, VariableCache]
@@ -23,10 +24,7 @@ ProjectCache: TypeAlias = typing.Dict[str, SiteCache]
 SiteData: TypeAlias = typing.Dict[str, tuple[str, str]]
 
 def get_msg(error: Exception) -> str:
-    msg = error
-    if hasattr(error, 'message'):
-        msg = error.message
-    return msg
+    return traceback.format_exc()
 
 
 def handle_error(error: Exception, prepend_msg: str = "error:", exit_code: int = -1) -> None:
@@ -75,7 +73,7 @@ def check_create_sites(project_id: str, site_data: SiteData, cache: SiteCache) -
 
 
 def create_sites(project_id: str, unknown_site_data: SiteData, cache: typing.Dict[str, typing.Dict[str, str]]) -> None:
-    result = permitted_client.streams.list_sites(project_id = project_id, side_id = site_id)
+    result = permitted_client.streams.list_sites(project_id = project_id)
     for item in result:
         #site already exists, delete from unknown set and add to cache
         if item.site_id in unknown_site_data:
