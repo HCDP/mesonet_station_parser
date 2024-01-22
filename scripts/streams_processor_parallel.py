@@ -10,7 +10,7 @@ import time
 import concurrent.futures
 import threading
 import json
-from urllib import urlopen
+from urllib.request import urlopen
 import csv
 import typing
 from typing import TypeAlias
