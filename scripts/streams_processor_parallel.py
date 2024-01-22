@@ -224,6 +224,7 @@ def get_alias_map(file_type: str, station_id: str) -> typing.Dict[str, str]:
 
 # Function that will be executed by the threads
 def process_station_files(station_file_group: typing.Dict[str, Any]) -> bool:
+    print("process_station_files start")
     station_id = station_file_group["station_id"]
     station_name = station_file_group["station_name"]
     site_id = station_file_group["site_id"]
@@ -268,6 +269,7 @@ def process_file_name(file_name: str) -> tuple[str]:
 def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers: int):
     file_groups = {}
     site_data = {}
+    print("process files")
     for file in listdir():
         path = join(data_dir, file)
         if isfile(path) and file.endswith(".dat"):
@@ -285,6 +287,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
             site_data[site_id] = (station_id, station_name)
             group["files"].append((file_type, file, path))
     try:
+        print("before check_create")
         check_create_sites(project_id, site_data, project_cache)
     except Exception as e:
         handle_error(e, prepend_msg = "Could not create sites:")
