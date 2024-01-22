@@ -29,7 +29,8 @@ def get_msg(error: Exception) -> str:
 
 def handle_error(error: Exception, prepend_msg: str = "error:", exit_code: int = -1) -> None:
     msg = get_msg(error)
-    logger2.error(f"{prepend_msg} {msg}")
+    print(msg)
+    logger.error(f"{prepend_msg} {msg}")
     if exit_code is not None:
         exit(exit_code)
 
