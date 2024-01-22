@@ -1,7 +1,7 @@
 from datetime import date, timedelta, datetime
 import argparse
 from tapipy.tapis import Tapis
-from tapipy.errors import InvalidInputError
+from tapipy.errors import BadRequestError
 import logging
 from logging import FileHandler
 from os.path import isfile, join, exists
@@ -61,7 +61,7 @@ def check_create_project(project_id: str, owner: str, pi: str, cache) -> None:
 def create_project(project_id: str, owner: str, pi: str) -> None:
     try:
         permitted_client.streams.get_project(project_id = project_id)
-    except InvalidInputError:
+    except BadRequestError:
         permitted_client.streams.create_project(project_name = project_id, owner = owner, pi = pi)
 
 
