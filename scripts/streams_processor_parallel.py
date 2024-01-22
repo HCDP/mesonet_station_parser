@@ -270,8 +270,9 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
     file_groups = {}
     site_data = {}
     print("process files")
-    for file in listdir():
+    for file in dir_content:
         path = join(data_dir, file)
+        print(path)
         if isfile(path) and file.endswith(".dat"):
             (station_id, station_name, file_type) = process_file_name(file)
             site_id = station_id
