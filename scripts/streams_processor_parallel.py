@@ -295,6 +295,8 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
     return results
 
 def setup_logging(verbose: bool) -> None:
+    global logger
+    global logger2
     # Logger for errors
     level = logging.ERROR
     file_handler = FileHandler('./logs/out.err')
