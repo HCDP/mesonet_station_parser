@@ -295,6 +295,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         print("dispatch")
         try:
+            print(file_groups.items())
             # Submit the processing of each file to the ThreadPoolExecutor
             results = list(executor.map(process_station_files, file_groups.items()))
         except Exception as e:
