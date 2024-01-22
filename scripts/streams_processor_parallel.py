@@ -13,7 +13,7 @@ import json
 from urllib.request import urlopen
 import csv
 import typing
-from typing import TypeAlias
+from typing import TypeAlias, Any
 
 VariableCache: TypeAlias = list[str]
 InstrumentCache: TypeAlias = typing.Dict[str, VariableCache]
