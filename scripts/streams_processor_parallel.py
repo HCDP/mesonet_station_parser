@@ -294,8 +294,11 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
         handle_error(e, prepend_msg = "Could not create sites:")
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         print("dispatch")
-        # Submit the processing of each file to the ThreadPoolExecutor
-        results = list(executor.map(process_station_files, file_groups.items()))
+        try:
+            # Submit the processing of each file to the ThreadPoolExecutor
+            results = list(executor.map(process_station_files, file_groups.items()))
+        except Exception as e:
+            print(e)
 
     return results
 
