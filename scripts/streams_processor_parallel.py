@@ -257,12 +257,13 @@ def process_station_files(station_file_group: typing.Dict[str, Any]) -> bool:
 
     
 def process_file_name(file_name: str) -> tuple[str]:
-    #0115_Piiholo_MetData.dat
+    data = None
     split = file_name.split("_")
-    id = split[0]
-    name = split[1]
-    file_type = split[2].split(".")[0]
-    return (id, name, file_type)
+    if len(split) == 2:
+        data = (split[0], None, split[1].split(".")[0])
+    elif len(split) == 3:
+        data = (split[0], split[1], split[2].split(".")[0])
+    return data
 
 
 # Define a function that handles the parallel processing of all files
@@ -274,19 +275,21 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
         path = join(data_dir, file)
         print(path)
         if isfile(path) and file.endswith(".dat"):
-            (station_id, station_name, file_type) = process_file_name(file)
-            site_id = station_id
-            group = file_groups.get(station_id)
-            if group is None:
-                group = {
-                    "station_id": station_id,
-                    "station_name": station_name,
-                    "site_id": site_id,
-                    "files": []
-                }
-                file_groups[station_id] = group
-            site_data[site_id] = (station_id, station_name)
-            group["files"].append((file_type, file, path))
+            fname_data = process_file_name(file)
+            if fname_data is not None:
+                (station_id, station_name, file_type) = fname_data
+                site_id = station_id
+                group = file_groups.get(station_id)
+                if group is None:
+                    group = {
+                        "station_id": station_id,
+                        "station_name": station_name,
+                        "site_id": site_id,
+                        "files": []
+                    }
+                    file_groups[station_id] = group
+                site_data[site_id] = (station_id, station_name)
+                group["files"].append((file_type, file, path))
     try:
         print("before check_create")
         check_create_sites(project_id, site_data, project_cache)
