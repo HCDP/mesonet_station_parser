@@ -15,10 +15,11 @@ import csv
 import typing
 from typing import TypeAlias
 
-SiteCache: TypeAlias = typing.Dict[str, InstrumentCache]
-ProjectCache: TypeAlias = typing.Dict[str, SiteCache]
 VariableCache: TypeAlias = list[str]
 InstrumentCache: TypeAlias = typing.Dict[str, VariableCache]
+SiteCache: TypeAlias = typing.Dict[str, InstrumentCache]
+ProjectCache: TypeAlias = typing.Dict[str, SiteCache]
+
 SiteData: TypeAlias = typing.Dict[str, tuple[str, str]]
 
 def get_msg(error: Exception) -> str:
