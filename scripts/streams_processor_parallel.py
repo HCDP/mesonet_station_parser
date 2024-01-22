@@ -23,9 +23,9 @@ ProjectCache: TypeAlias = typing.Dict[str, SiteCache]
 SiteData: TypeAlias = typing.Dict[str, tuple[str, str]]
 
 def get_msg(error: Exception) -> str:
-    msg = e
-    if hasattr(e, 'message'):
-        msg = e.message
+    msg = error
+    if hasattr(error, 'message'):
+        msg = error.message
     return msg
 
 
