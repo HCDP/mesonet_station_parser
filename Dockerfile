@@ -17,6 +17,4 @@ USER tapis
 WORKDIR /home/tapis
 
 RUN mkdir /home/tapis/data
-RUN mkdir /home/tapis/standard_var
-ADD /standard_var /home/tapis/standard_var/
 RUN mkdir /home/tapis/logs
