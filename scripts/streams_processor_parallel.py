@@ -1,7 +1,7 @@
 from datetime import date, timedelta, datetime
 import argparse
 from tapipy.tapis import Tapis
-from tapipy.errors import InvalidInputError
+from tapipy.errors import InvalidInputError, InternalServerError
 import logging
 from logging import FileHandler
 from os.path import isfile, join, exists
@@ -21,24 +21,35 @@ InstrumentCache: TypeAlias = typing.Dict[str, VariableCache]
 VariableCache: TypeAlias = list[str]
 SiteData: TypeAlias = typing.Dict[str, tuple[str, str]]
 
+
 def get_msg(error: Exception) -> str:
     msg = e
-    if hasattr(e, 'message'):
+    if hasattr(e, "message"):
         msg = e.message
     return msg
 
 
-def handle_error(error: Exception, prepend_msg: str = "error:", exit_code: int = -1) -> None:
+def handle_error(
+    error: Exception, prepend_msg: str = "error:", exit_code: int = -1
+) -> None:
     msg = get_msg(error)
     logger.error(f"{prepend_msg} {msg}")
     if exit_code is not None:
         exit(exit_code)
 
 
+def get_last_line(csv_data):
+    # Decodes CSV data from bytes to string and returns the last line or None if empty.
+    csv_string = csv_data.decode("utf-8")
+    lines = csv_string.splitlines()
+
+    return lines[-1] if lines else None
+
+
 def get_location_info(station_id: str) -> tuple[int, int, int]:
     station_metadata = metadata_doc.get(station_id)
 
-    location_info = (20, -158, 0) # somewhere left of Hawaii island in the ocean
+    location_info = (20, -158, 0)  # somewhere left of Hawaii island in the ocean
 
     # Check if station exist in csv
     if station_metadata is not None:
@@ -59,9 +70,11 @@ def check_create_project(project_id: str, owner: str, pi: str, cache) -> None:
 
 def create_project(project_id: str, owner: str, pi: str) -> None:
     try:
-        permitted_client.streams.get_project(project_id = project_id)
+        permitted_client.streams.get_project(project_id=project_id)
     except InvalidInputError:
-        permitted_client.streams.create_project(project_name = project_id, owner = owner, pi = pi)
+        permitted_client.streams.create_project(
+            project_name=project_id, owner=owner, pi=pi
+        )
 
 
 def check_create_sites(project_id: str, site_data: SiteData, cache: SiteCache) -> None:
@@ -73,10 +86,14 @@ def check_create_sites(project_id: str, site_data: SiteData, cache: SiteCache) -
         create_sites(project_id, unknown_site_data, cache)
 
 
-def create_sites(project_id: str, unknown_site_data: SiteData, cache: typing.Dict[str, typing.Dict[str, str]]) -> None:
-    result = permitted_client.streams.list_sites(project_id = project_id, side_id = site_id)
+def create_sites(
+    project_id: str,
+    unknown_site_data: SiteData,
+    cache: typing.Dict[str, typing.Dict[str, str]],
+) -> None:
+    result = permitted_client.streams.list_sites(project_id=project_id, side_id=site_id)
     for item in result:
-        #site already exists, delete from unknown set and add to cache
+        # site already exists, delete from unknown set and add to cache
         if item.site_id in unknown_site_data:
             del unknown_site_data[item.site_id]
             cache[item.site_id] = {}
@@ -84,49 +101,81 @@ def create_sites(project_id: str, unknown_site_data: SiteData, cache: typing.Dic
         request_body = []
         for site in unknown_site_data:
             (station_id, site_name) = unknown_site_data[site]
-            (latitude, longitude, elevation) = get_location_info(station_id = station_id)
-            request_body.append({
-                "site_name": site,
-                "site_id": site,
-                "latitude": latitude, 
-                "longitude": longitude,
-                "elevation": elevation,
-                "description": site_name
-            })
-        permitted_client.streams.create_site(project_id = project_id, request_body = request_body)
-        #add newly created sites to cache
+            (latitude, longitude, elevation) = get_location_info(station_id=station_id)
+            request_body.append(
+                {
+                    "site_name": site,
+                    "site_id": site,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "elevation": elevation,
+                    "description": site_name,
+                }
+            )
+        permitted_client.streams.create_site(
+            project_id=project_id, request_body=request_body
+        )
+        # add newly created sites to cache
         for site in unknown_site_data:
             cache[site] = {}
 
 
-def check_create_instruments(project_id: str, site_id: str, site_name: str, instruments: list[str], cache: InstrumentCache) -> None:
+def check_create_instruments(
+    project_id: str,
+    site_id: str,
+    site_name: str,
+    instruments: list[str],
+    cache: InstrumentCache,
+) -> None:
     unknown_instruments = set()
     for instrument in instruments:
         if not instrument in cache:
             unknown_instruments.add(instrument)
     if len(unknown_instruments) > 0:
-        create_instruments(project_id, site_id, site_name, file_type, unknown_instruments, cache)
+        create_instruments(
+            project_id, site_id, site_name, file_type, unknown_instruments, cache
+        )
 
 
-def create_instruments(project_id: str, site_id: str, site_name: str, unknown_instruments: typing.Set, cache: InstrumentCache) -> None:
-    result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
+def create_instruments(
+    project_id: str,
+    site_id: str,
+    site_name: str,
+    unknown_instruments: typing.Set,
+    cache: InstrumentCache,
+) -> None:
+    result = permitted_client.streams.list_instruments(
+        project_id=project_id, site_id=site_id
+    )
     for item in result:
         if item.inst_id in unknown_instruments:
             unknown_instruments.remove(item.inst_id)
             cache[item.inst_id] = []
     if len(unknown_instruments) > 0:
-        request_body = [{
-            "inst_name": instrument,
-            "inst_id": instrument,
-            "inst_description": f"{instrument} for {site_id}, {site_name}"
-        } for instrument in unknown_instruments]
-        permitted_client.streams.create_instrument(project_id = project_id, site_id = site_id, request_body = request_body)
+        request_body = [
+            {
+                "inst_name": instrument,
+                "inst_id": instrument,
+                "inst_description": f"{instrument} for {site_id}, {site_name}",
+            }
+            for instrument in unknown_instruments
+        ]
+        permitted_client.streams.create_instrument(
+            project_id=project_id, site_id=site_id, request_body=request_body
+        )
         for instrument in unknown_instruments:
             cache[instrument] = []
 
 
-def check_create_variables(project_id: str, site_id: str, inst_id: str, variables: list[str], units: list[str], cache: VariableCache) -> None:
-    #create unit map by zipping variables and units
+def check_create_variables(
+    project_id: str,
+    site_id: str,
+    inst_id: str,
+    variables: list[str],
+    units: list[str],
+    cache: VariableCache,
+) -> None:
+    # create unit map by zipping variables and units
     variable_unit_map = {variables[i]: units[i] for i in range(len(variables))}
     cache_set = set(cache)
     unknown_variable_unit_map = {}
@@ -137,63 +186,136 @@ def check_create_variables(project_id: str, site_id: str, inst_id: str, variable
         create_variables(project_id, site_id, inst_id, unknown_variable_unit_map, cache)
 
 
-def create_variables(project_id: str, site_id: str, inst_id: str, unknown_variable_unit_map: typing.Dict[str, str], cache: VariableCache) -> None:
-    result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = instrument_id)
+def create_variables(
+    project_id: str,
+    site_id: str,
+    inst_id: str,
+    unknown_variable_unit_map: typing.Dict[str, str],
+    cache: VariableCache,
+) -> None:
+    result = permitted_client.streams.list_variables(
+        project_id=project_id, site_id=site_id, inst_id=instrument_id
+    )
     for item in result:
         if item.var_id in unknown_variable_unit_map:
             del unknown_variable_unit_map[item.var_id]
             cache.append(item.var_id)
     if len(unknown_variable_unit_map) > 0:
-        request_body = [{
-            "var_id": variable,
-            "var_name": variable,
-            "unit": unknown_variable_unit_map[variable]
-        } for variable in unknown_variable_unit_map]
-        permitted_client.streams.create_variable(project_id = project_id, site_id = site_id, inst_id = inst_id, request_body = request_body)
+        request_body = [
+            {
+                "var_id": variable,
+                "var_name": variable,
+                "unit": unknown_variable_unit_map[variable],
+            }
+            for variable in unknown_variable_unit_map
+        ]
+        permitted_client.streams.create_variable(
+            project_id=project_id,
+            site_id=site_id,
+            inst_id=inst_id,
+            request_body=request_body,
+        )
     for variable in unknown_variable_unit_map:
         cache.append(variable)
 
 
-def create_measurements(instrument_id: str, measurements: list[typing.Dict[str, str]]) -> None:
-    permitted_client.streams.create_measurement(inst_id = instrument_id, vars = measurements)
+def create_measurements(
+    instrument_id: str, measurements: list[typing.Dict[str, str]]
+) -> None:
+    permitted_client.streams.create_measurement(
+        inst_id=instrument_id, vars=measurements
+    )
+
+
+def fetch_most_recent_measurement_date(
+    inst_id: str, project_id: str, site_id: str
+) -> None:
+    try:
+        # Checks for any sensor data over the past 30 days
+        DAYS_BACK = 1
+        MAX_DAYS_BACK = 30
+
+        while DAYS_BACK < MAX_DAYS_BACK:
+            current_utc_time = datetime.utcnow()
+            end_date = current_utc_time.isoformat() + "Z"
+            start_date = (
+                current_utc_time - timedelta(days=DAYS_BACK)
+            ).isoformat() + "Z"
+
+            try:
+                measures = permitted_client.streams.list_measurements(
+                    inst_id=inst_id,
+                    project_id=project_id,
+                    site_id=site_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    format="csv",
+                )
+
+                last_line = get_last_line(measures)
+                most_recent_time = last_line.split(",", 1)[0]
+                # TODO Replace print and break with a return
+                print(most_recent_time)
+                break
+
+            except InternalServerError as e:
+                print(f"No data for date range: {start_date} to {end_date}")
+
+            DAYS_BACK += 1
+
+        if DAYS_BACK == MAX_DAYS_BACK:
+            print(f"No data found in the past {MAX_DAYS_BACK} days.")
+
+    except InvalidInputError:
+        pass
 
 
 def parse_timestamp(timestamp: str) -> str:
     measurement_time = timestamp.split(" ")
     dt = None
-    #handle 24:00:00 formatting for midnight
+    # handle 24:00:00 formatting for midnight
     if int(measurement_time[1].split(":")[0]) > 23:
         converted_timestamp = measurement_time[0] + " 23:59:59"
-        dt = datetime.strptime(converted_timestamp, '%Y-%m-%d %H:%M:%S')
-        dt += timedelta(seconds = 1)
+        dt = datetime.strptime(converted_timestamp, "%Y-%m-%d %H:%M:%S")
+        dt += timedelta(seconds=1)
     else:
-        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
 
-    iso_string = time_string.isoformat()+"-10:00"
+    iso_string = time_string.isoformat() + "-10:00"
     return iso_string
 
 
-def process_station_file(project_id: str, site_id: str, instrument_id: str, fname: str, fpath: str, alias_map: typing.Dict[str, str], cache: VariableCache) -> None:
+def process_station_file(
+    project_id: str,
+    site_id: str,
+    instrument_id: str,
+    fname: str,
+    fpath: str,
+    alias_map: typing.Dict[str, str],
+    cache: VariableCache,
+) -> None:
     global count
 
     measurements = []
-    with open(data_path, encoding="utf8", errors="backslashreplace", newline='') as f:
+    with open(data_path, encoding="utf8", errors="backslashreplace", newline="") as f:
         reader = csv.reader(f)
-        #skip first line
+        # skip first line
         next(reader)
-        #second line has variable names
-        #strip out timestamp and id columns
+        # second line has variable names
+        # strip out timestamp and id columns
         variables = next(reader)[2:]
-        #translate to standard names
+        # translate to standard names
         variables = [file_alias_map.get(var) or var for var in variables]
-        #third line has units
+        # third line has units
         units = next(reader)[2:]
-        #create variables
-        check_create_variables(project_id, site_id, instrument_id, variables, units, cache)
-        #move past last header line
+        # create variables
+        check_create_variables(
+            project_id, site_id, instrument_id, variables, units, cache
+        )
+        # move past last header line
         next(reader)
-        
-        #get measurements
+
+        # get measurements
         for row in reader:
             dt_measurements = {}
             timestamp = parse_timestamp(row[0])
@@ -203,9 +325,9 @@ def process_station_file(project_id: str, site_id: str, instrument_id: str, fnam
             for i in range(2, len(row)):
                 dt_measurements[variables[i]] = row[i]
             variables.append(dt_measurements)
-    #create the measurements
+    # create the measurements
     create_measurements(instrument_id, measurements)
-    
+
     # Update the count value in a thread-safe manner
     with count_lock:
         count += 1
@@ -213,11 +335,11 @@ def process_station_file(project_id: str, site_id: str, instrument_id: str, fnam
 
 
 def get_alias_map(file_type: str, station_id: str) -> typing.Dict[str, str]:
-    #switch to simplified form when alias map stripped out (may have to process exceptions)
+    # switch to simplified form when alias map stripped out (may have to process exceptions)
     ftype_alias_map = alias_map.get(file_type) or {}
     universal_alias_map = ftype_alias_map.get("universal") or {}
     id_alias_map = ftype_alias_map.get(station_id) or {}
-    #for master variable list in file need to find variable names not in this map and use reflexive
+    # for master variable list in file need to find variable names not in this map and use reflexive
     file_alias_map = {**universal_alias_map, **id_alias_map}
 
 
@@ -232,30 +354,45 @@ def process_station_files(station_file_group: typing.Dict[str, Any]) -> bool:
     logger2.info(f"Processing files for station {station_id}, {station_name}")
 
     try:
-        instruments = [ f"{station_id}_{file_data[0]}" for file_data in station_file_data ]
-        #create instruments
-        check_create_instruments(project_id, site_id, station_name, instruments, site_cache)
+        instruments = [
+            f"{station_id}_{file_data[0]}" for file_data in station_file_data
+        ]
+        # create instruments
+        check_create_instruments(
+            project_id, site_id, station_name, instruments, site_cache
+        )
         for i in range(len(station_file_data)):
             (file_type, fname, fpath) = station_file_data[i]
             instrument_id = instruments[i]
             alias_map = get_alias_map(file_type, station_id)
             instrument_cache = site_cache[instrument_id]
             try:
-                process_station_file(project_id, site_id, instrument_id, fname, fpath, alias_map, instrument_cache)
+                process_station_file(
+                    project_id,
+                    site_id,
+                    instrument_id,
+                    fname,
+                    fpath,
+                    alias_map,
+                    instrument_cache,
+                )
             except Exception as e:
                 e_msg = get_msg(e)
-                logger.error(f"An error occurred while processing the file {fpath} for station {station_id}, {station_name}: {e_msg}")
+                logger.error(
+                    f"An error occurred while processing the file {fpath} for station {station_id}, {station_name}: {e_msg}"
+                )
                 return False
     except Exception as e:
         e_msg = get_msg(e)
-        logger.error(f"An error occurred while processing the files for station {station_id}, {station_name}: {e_msg}")
+        logger.error(
+            f"An error occurred while processing the files for station {station_id}, {station_name}: {e_msg}"
+        )
         return False
     return True
-        
 
-    
+
 def process_file_name(file_name: str) -> tuple[str]:
-    #0115_Piiholo_MetData.dat
+    # 0115_Piiholo_MetData.dat
     split = file_name.split("_")
     id = split[0]
     name = split[1]
@@ -278,7 +415,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
                     "station_id": station_id,
                     "station_name": station_name,
                     "site_id": site_id,
-                    "files": []
+                    "files": [],
                 }
                 file_groups[station_id] = group
             site_data[site_id] = (station_id, station_name)
@@ -286,34 +423,37 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
     try:
         check_create_sites(project_id, site_data, project_cache)
     except Exception as e:
-        handle_error(e, prepend_msg = "Could not create sites:")
-    with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
+        handle_error(e, prepend_msg="Could not create sites:")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         # Submit the processing of each file to the ThreadPoolExecutor
         results = list(executor.map(process_station_files, file_groups.items()))
 
     return results
 
+
 def setup_logging(verbose: bool) -> None:
     # Logger for errors
     level = logging.ERROR
-    file_handler = FileHandler('./logs/out.err')
-    logger = logging.getLogger('Logger1')
+    file_handler = FileHandler("./logs/out.err")
+    logger = logging.getLogger("Logger1")
     logger.setLevel(level)
-    formatter = logging.Formatter('[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
+    formatter = logging.Formatter("[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
     # Logger for execution info
     level = logging.INFO
-    logger2 = logging.getLogger('Logger2')
+    logger2 = logging.getLogger("Logger2")
     logger2.setLevel(level)
-    file_handler2 = FileHandler('./logs/out.log')
-    formatter = logging.Formatter('\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]')
+    file_handler2 = FileHandler("./logs/out.log")
+    formatter = logging.Formatter(
+        "\r[%(asctime)s] %(message)s [%(pathname)s:%(lineno)d]"
+    )
     file_handler2.setFormatter(formatter)
     logger2.addHandler(file_handler2)
 
     # Print to stdout if -v (verbose) option is passed
-    if (verbose):
+    if verbose:
         stdout_handler = logging.StreamHandler()
         logger.addHandler(stdout_handler)
         logger2.addHandler(stdout_handler)
@@ -321,34 +461,59 @@ def setup_logging(verbose: bool) -> None:
 
 if __name__ == "__main__":
     # Argument parser
-    parser = argparse.ArgumentParser(
-        prog="streams_processor.py",
-        description=""
-    )
+    parser = argparse.ArgumentParser(prog="streams_processor.py", description="")
 
     # TODO: might remove for final prod
-    parser.add_argument("-i", "--iteration", help="set the iteration number for project version")
-    parser.add_argument("-v", "--verbose", action="store_true",
-                        help="turn on verbose mode")
-    parser.add_argument("-d","--data_dir", help="provide the path to the directory with the mesonet stations files")
-    parser.add_argument("-pid","--project_id", help="provide the Tapis Streams Project ID to parse the data into")
-    parser.add_argument("-t","--tenant", help="Tapis tenant to use like dev")
-    parser.add_argument("-tu","--tapis_url", help="Tapis base URL to use like https://dev.develop.tapis.io")
-    parser.add_argument("-th","--threads", type=int, help="Number of threads to use to process the mesonet files in parallel")
-    parser.add_argument("-u","--username", help="Tapis username that was read/write access to the project and data")
-    parser.add_argument("-p","--password", help="The Tapis password for the username provided")
-    parser.add_argument("-c","--cache_file", help="The Tapis password for the username provided")
+    parser.add_argument(
+        "-i", "--iteration", help="set the iteration number for project version"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="turn on verbose mode"
+    )
+    parser.add_argument(
+        "-d",
+        "--data_dir",
+        help="provide the path to the directory with the mesonet stations files",
+    )
+    parser.add_argument(
+        "-pid",
+        "--project_id",
+        help="provide the Tapis Streams Project ID to parse the data into",
+    )
+    parser.add_argument("-t", "--tenant", help="Tapis tenant to use like dev")
+    parser.add_argument(
+        "-tu",
+        "--tapis_url",
+        help="Tapis base URL to use like https://dev.develop.tapis.io",
+    )
+    parser.add_argument(
+        "-th",
+        "--threads",
+        type=int,
+        help="Number of threads to use to process the mesonet files in parallel",
+    )
+    parser.add_argument(
+        "-u",
+        "--username",
+        help="Tapis username that was read/write access to the project and data",
+    )
+    parser.add_argument(
+        "-p", "--password", help="The Tapis password for the username provided"
+    )
+    parser.add_argument(
+        "-c", "--cache_file", help="The Tapis password for the username provided"
+    )
 
     args = parser.parse_args()
 
     # Set Tapis Tenant and Base URL
-    tenant = args.tenant #"dev"
-    base_url = args.tapis_url #'https://' + tenant + '.develop.tapis.io'
+    tenant = args.tenant  # "dev"
+    base_url = args.tapis_url  #'https://' + tenant + '.develop.tapis.io'
 
     setup_logging(args.verbose)
 
-    permitted_username = args.username #"testuser2"
-    permitted_user_password = args.password #"testuser2"
+    permitted_username = args.username  # "testuser2"
+    permitted_user_password = args.password  # "testuser2"
 
     # iteration of test
     # TODO: can be removed for final revision
@@ -358,20 +523,21 @@ if __name__ == "__main__":
 
     try:
         # #Create python Tapis client for user
-        permitted_client = Tapis(base_url = base_url,
-                                 username = permitted_username,
-                                 password = permitted_user_password,
-                                 account_type = 'user',
-                                 tenant_id = tenant
-                                 )
+        permitted_client = Tapis(
+            base_url=base_url,
+            username=permitted_username,
+            password=permitted_user_password,
+            account_type="user",
+            tenant_id=tenant,
+        )
 
         # Generate an Access Token that will be used for all API calls
         permitted_client.get_tokens()
 
     except Exception as e:
-        handle_error(e, prepend_msg = "Error: Tapis client could not be created -")
+        handle_error(e, prepend_msg="Error: Tapis client could not be created -")
 
-    project_id = args.project_id + '_' + iteration
+    project_id = args.project_id + "_" + iteration
 
     cache = {}
     if args.cache_file is not None:
@@ -380,9 +546,8 @@ if __name__ == "__main__":
                 cache = json.load(f)
         else:
             logger2.info("Could not find cache file. A new one will be created.")
-    
 
-    #allow multi url/tenant cache support
+    # allow multi url/tenant cache support
     url_cache = cache.get(args.tapis_url)
     if url_cache is None:
         url_cache = {}
@@ -412,25 +577,25 @@ if __name__ == "__main__":
         with urlopen(alias_doc) as f:
             alias_map = json.load(f)
     except Exception as e:
-        handle_error(e, prepend_msg = "Error retrieving alias json doc:")
+        handle_error(e, prepend_msg="Error retrieving alias json doc:")
     try:
         with urlopen(metadata_doc) as f:
             metadata_map = json.load(f)
     except Exception as e:
-        handle_error(e, prepend_msg = "Error retrieving metadata json doc:")
+        handle_error(e, prepend_msg="Error retrieving metadata json doc:")
 
     # Initialize the lock
     count_lock = threading.Lock()
 
     # Define the number of parallel workers
     num_workers = args.threads
-    
+
     dir_content = listdir(args.data_dir)
     logger2.info(f"Progress: 0/{len(dir_content)}")
     # Call the function to process files in parallel
     results = process_files_in_parallel(args.data_dir, dir_content, num_workers)
 
-    #write out cache file if specified
+    # write out cache file if specified
     if args.cache_file is not None:
         with open(args.cache_file, "w") as f:
             json.dump(cache, f)
@@ -438,4 +603,9 @@ if __name__ == "__main__":
     end_time = time.time()
     exec_time = end_time - start_time
 
-    logger2.info("Files parsing complete: success: %d, failed: %d, time: %.2f seconds", count, len(dir_content) - count, exec_time)
+    logger2.info(
+        "Files parsing complete: success: %d, failed: %d, time: %.2f seconds",
+        count,
+        len(dir_content) - count,
+        exec_time,
+    )

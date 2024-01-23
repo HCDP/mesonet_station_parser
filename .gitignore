@@ -3,3 +3,4 @@ logs
 cache
 site.*
 var.*
+scripts/test.py
