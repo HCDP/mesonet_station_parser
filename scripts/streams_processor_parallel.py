@@ -36,7 +36,7 @@ def handle_error(error: Exception, prepend_msg: str = "error:", exit_code: int =
 
 
 def get_location_info(station_id: str) -> tuple[int, int, int]:
-    station_metadata = metadata_doc.get(station_id)
+    station_metadata = metadata_map.get(station_id)
 
     location_info = (20, -158, 0) # somewhere left of Hawaii island in the ocean
 
