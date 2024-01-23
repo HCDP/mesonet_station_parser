@@ -74,7 +74,12 @@ def check_create_sites(project_id: str, site_data: SiteData, cache: SiteCache) -
 
 
 def create_sites(project_id: str, unknown_site_data: SiteData, cache: typing.Dict[str, typing.Dict[str, str]]) -> None:
-    result = permitted_client.streams.list_sites(project_id = project_id)
+    result = []
+    try:
+        result = permitted_client.streams.list_sites(project_id = project_id)
+    #list methods return an error if there are no items...
+    except BadRequestError:
+        pass
     for item in result:
         #site already exists, delete from unknown set and add to cache
         if item.site_id in unknown_site_data:
@@ -109,7 +114,11 @@ def check_create_instruments(project_id: str, site_id: str, site_name: str, inst
 
 
 def create_instruments(project_id: str, site_id: str, site_name: str, unknown_instruments: typing.Set, cache: InstrumentCache) -> None:
-    result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
+    result = []
+    try:
+        result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
+    except BadRequestError:
+        pass
     for item in result:
         if item.inst_id in unknown_instruments:
             unknown_instruments.remove(item.inst_id)
@@ -138,7 +147,11 @@ def check_create_variables(project_id: str, site_id: str, inst_id: str, variable
 
 
 def create_variables(project_id: str, site_id: str, inst_id: str, unknown_variable_unit_map: typing.Dict[str, str], cache: VariableCache) -> None:
-    result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = instrument_id)
+    result = []
+    try:
+        result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = instrument_id)
+    except BadRequestError:
+        pass
     for item in result:
         if item.var_id in unknown_variable_unit_map:
             del unknown_variable_unit_map[item.var_id]
