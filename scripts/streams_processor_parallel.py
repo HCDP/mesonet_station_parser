@@ -92,6 +92,7 @@ def create_sites(
     cache: typing.Dict[str, typing.Dict[str, str]],
 ) -> None:
     result = permitted_client.streams.list_sites(project_id=project_id, side_id=site_id)
+
     for item in result:
         # site already exists, delete from unknown set and add to cache
         if item.site_id in unknown_site_data:
@@ -230,6 +231,16 @@ def create_measurements(
 def fetch_most_recent_measurement_date(
     inst_id: str, project_id: str, site_id: str
 ) -> None:
+    """
+    Retrieves the most recent measurement date for a given instrument.
+
+    Searches through sensor data from the past 30 days to find the latest date with measurement data.
+    If no data is found within this period, it prints a No Data Found message.
+
+    Returns:
+        str: Date of most recent measurement in ISO format, or prints a message if no data found.
+
+    """
     try:
         # Checks for any sensor data over the past 30 days
         DAYS_BACK = 1
@@ -313,6 +324,16 @@ def process_station_file(
         )
         # move past last header line
         next(reader)
+
+        """
+        Maybe fetch_most_recent_measurement_date somewhere around here. Then while 
+        iterating through each row, only pull data if timestamp is > than the 
+        most_recent_measurement_date fetched.
+        
+        Currently iterates through the entire instrument's file and most recent data is
+        at the bottom. Perhaps read CSV in chunks, then compare most_recentt_measurement_date
+        with the bottom of the chunk? Only process measurements after most_recentt_measurement_date.
+        """
 
         # get measurements
         for row in reader:
