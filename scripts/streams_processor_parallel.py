@@ -254,9 +254,8 @@ def fetch_most_recent_measurement_date(
 
                 last_line = get_last_line(measures)
                 most_recent_time = last_line.split(",", 1)[0]
-                # TODO Replace print and break with a return
-                print(most_recent_time)
-                break
+
+                return most_recent_time
 
             except InternalServerError as e:
                 print(f"No data for date range: {start_date} to {end_date}")
@@ -508,7 +507,7 @@ if __name__ == "__main__":
 
     # Set Tapis Tenant and Base URL
     tenant = args.tenant  # "dev"
-    base_url = args.tapis_url  #'https://' + tenant + '.develop.tapis.io'
+    base_url = args.tapis_url  # 'https://' + tenant + '.develop.tapis.io'
 
     setup_logging(args.verbose)
 
@@ -522,7 +521,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     try:
-        # #Create python Tapis client for user
+        # Create python Tapis client for user
         permitted_client = Tapis(
             base_url=base_url,
             username=permitted_username,
