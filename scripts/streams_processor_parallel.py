@@ -316,7 +316,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
             # Submit the processing of each file to the ThreadPoolExecutor
             results = list(executor.map(process_station_files, file_groups.items()))
         except Exception as e:
-            print(e)
+            print(get_msg(e))
 
     return results
 
