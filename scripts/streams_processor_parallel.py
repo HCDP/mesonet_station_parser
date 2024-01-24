@@ -1,6 +1,6 @@
 from datetime import date, timedelta, datetime
 import argparse
-from tapipy.tapis import Tapis
+from tapipy.tapis import Tapis, TapisResult
 from tapipy.errors import BadRequestError
 import logging
 from logging import FileHandler
@@ -110,15 +110,16 @@ def check_create_instruments(project_id: str, site_id: str, site_name: str, inst
         if not instrument in cache:
             unknown_instruments.add(instrument)
     if len(unknown_instruments) > 0:
-        create_instruments(project_id, site_id, site_name, file_type, unknown_instruments, cache)
+        create_instruments(project_id, site_id, site_name, unknown_instruments, cache)
 
 
 def create_instruments(project_id: str, site_id: str, site_name: str, unknown_instruments: typing.Set, cache: InstrumentCache) -> None:
-    result = []
-    try:
-        result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
-    except BadRequestError:
-        pass
+    #list_instruments does not throw an error if empty, instead returns useless uniterable TapisResult object
+    result = permitted_client.streams.list_instruments(project_id = project_id, site_id = site_id)
+    #convert to empty array if returned TapisResult object
+    if isinstance(result, TapisResult):
+        result = []
+
     for item in result:
         if item.inst_id in unknown_instruments:
             unknown_instruments.remove(item.inst_id)
@@ -149,7 +150,7 @@ def check_create_variables(project_id: str, site_id: str, inst_id: str, variable
 def create_variables(project_id: str, site_id: str, inst_id: str, unknown_variable_unit_map: typing.Dict[str, str], cache: VariableCache) -> None:
     result = []
     try:
-        result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = instrument_id)
+        result = permitted_client.streams.list_variables(project_id = project_id, site_id = site_id, inst_id = inst_id)
     except BadRequestError:
         pass
     for item in result:
@@ -167,8 +168,8 @@ def create_variables(project_id: str, site_id: str, inst_id: str, unknown_variab
         cache.append(variable)
 
 
-def create_measurements(instrument_id: str, measurements: list[typing.Dict[str, str]]) -> None:
-    permitted_client.streams.create_measurement(inst_id = instrument_id, vars = measurements)
+def create_measurements(inst_id: str, measurements: list[typing.Dict[str, str]]) -> None:
+    permitted_client.streams.create_measurement(inst_id = inst_id, vars = measurements)
 
 
 def parse_timestamp(timestamp: str) -> str:
@@ -182,27 +183,31 @@ def parse_timestamp(timestamp: str) -> str:
     else:
         dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
 
-    iso_string = time_string.isoformat()+"-10:00"
+    iso_string = dt.isoformat()+"-10:00"
     return iso_string
 
 
-def process_station_file(project_id: str, site_id: str, instrument_id: str, fname: str, fpath: str, alias_map: typing.Dict[str, str], cache: VariableCache) -> None:
+def process_station_file(project_id: str, site_id: str, inst_id: str, fpath: str, alias_map: typing.Dict[str, str], cache: VariableCache) -> None:
     global count
 
+    print("process file")
+
     measurements = []
-    with open(data_path, encoding="utf8", errors="backslashreplace", newline='') as f:
+    with open(fpath, encoding="utf8", errors="backslashreplace", newline='') as f:
+        print("open")
         reader = csv.reader(f)
         #skip first line
         next(reader)
         #second line has variable names
         #strip out timestamp and id columns
         variables = next(reader)[2:]
+        print(variables)
         #translate to standard names
-        variables = [file_alias_map.get(var) or var for var in variables]
+        variables = [alias_map.get(var) or var for var in variables]
         #third line has units
         units = next(reader)[2:]
         #create variables
-        check_create_variables(project_id, site_id, instrument_id, variables, units, cache)
+        check_create_variables(project_id, site_id, inst_id, variables, units, cache)
         #move past last header line
         next(reader)
         
@@ -212,17 +217,17 @@ def process_station_file(project_id: str, site_id: str, instrument_id: str, fnam
             timestamp = parse_timestamp(row[0])
 
             dt_measurements["datetime"] = timestamp
-
-            for i in range(2, len(row)):
+            row = row[2:]
+            for i in range(len(row)):
+                print(i, len(row), len(variables))
                 dt_measurements[variables[i]] = row[i]
             variables.append(dt_measurements)
     #create the measurements
-    create_measurements(instrument_id, measurements)
+    create_measurements(inst_id, measurements)
+
+    print("Complete!")
     
-    # Update the count value in a thread-safe manner
-    with count_lock:
-        count += 1
-        logger2.info("Progress: %d/%d", count, len(listdir(data_dir)))
+    
 
 
 def get_alias_map(file_type: str, station_id: str) -> typing.Dict[str, str]:
@@ -232,6 +237,7 @@ def get_alias_map(file_type: str, station_id: str) -> typing.Dict[str, str]:
     id_alias_map = ftype_alias_map.get(station_id) or {}
     #for master variable list in file need to find variable names not in this map and use reflexive
     file_alias_map = {**universal_alias_map, **id_alias_map}
+    return file_alias_map
 
 
 # Function that will be executed by the threads
@@ -246,24 +252,31 @@ def process_station_files(station_file_group: typing.Dict[str, Any]) -> bool:
     logger2.info(f"Processing files for station {station_id}, {station_name}")
 
     try:
-        instruments = [ f"{station_id}_{file_data[0]}" for file_data in station_file_data ]
+        instruments = [ f"{site_id}_{file_data[0]}" for file_data in station_file_data ]
         #create instruments
         check_create_instruments(project_id, site_id, station_name, instruments, site_cache)
         for i in range(len(station_file_data)):
             (file_type, fname, fpath) = station_file_data[i]
-            instrument_id = instruments[i]
+            inst_id = instruments[i]
             alias_map = get_alias_map(file_type, station_id)
-            instrument_cache = site_cache[instrument_id]
+            instrument_cache = site_cache[inst_id]
             try:
-                process_station_file(project_id, site_id, instrument_id, fname, fpath, alias_map, instrument_cache)
+                process_station_file(project_id, site_id, inst_id, fpath, alias_map, instrument_cache)
             except Exception as e:
                 e_msg = get_msg(e)
+                print(e_msg)
                 logger.error(f"An error occurred while processing the file {fpath} for station {station_id}, {station_name}: {e_msg}")
                 return False
     except Exception as e:
         e_msg = get_msg(e)
+        print(e_msg)
         logger.error(f"An error occurred while processing the files for station {station_id}, {station_name}: {e_msg}")
         return False
+    #replace total with global var
+    # Update the count value in a thread-safe manner
+    # with count_lock:
+    #     count += 1
+    #     logger2.info("Progress: %d/%d", count, len(listdir(data_dir)))
     return True
         
 
@@ -279,7 +292,7 @@ def process_file_name(file_name: str) -> tuple[str]:
 
 
 # Define a function that handles the parallel processing of all files
-def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers: int):
+def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers: int, iteration: str):
     file_groups = {}
     site_data = {}
     print("process files")
@@ -290,7 +303,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
             fname_data = process_file_name(file)
             if fname_data is not None:
                 (station_id, station_name, file_type) = fname_data
-                site_id = station_id
+                site_id = f"{station_id}_{iteration}"
                 group = file_groups.get(station_id)
                 if group is None:
                     group = {
@@ -314,7 +327,7 @@ def process_files_in_parallel(data_dir: str, dir_content: list[str], num_workers
         print("dispatch")
         try:
             # Submit the processing of each file to the ThreadPoolExecutor
-            results = list(executor.map(process_station_files, file_groups.items()))
+            results = list(executor.map(process_station_files, list(file_groups.values())))
         except Exception as e:
             print(get_msg(e))
 
@@ -455,9 +468,11 @@ if __name__ == "__main__":
     num_workers = args.threads
     
     dir_content = listdir(args.data_dir)
+    num_files = len(dir_content)
+
     logger2.info(f"Progress: 0/{len(dir_content)}")
     # Call the function to process files in parallel
-    results = process_files_in_parallel(args.data_dir, dir_content, num_workers)
+    results = process_files_in_parallel(args.data_dir, dir_content, num_workers, iteration)
 
     #write out cache file if specified
     if args.cache_file is not None:
