@@ -3,3 +3,5 @@ logs
 cache
 site.*
 var.*
+*.cache
+test.*

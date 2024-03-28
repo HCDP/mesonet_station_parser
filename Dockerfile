@@ -4,8 +4,6 @@ from python:3.10
 
 RUN pip install --no-cache-dir pandas tapipy
 
-#RUN pip install git+https://github.com/tapis-project/tapipy#egg=tapipy
-
 RUN useradd tapis
 
 ADD /scripts /home/tapis/
