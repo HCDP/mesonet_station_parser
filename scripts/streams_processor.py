@@ -170,19 +170,7 @@ def parse_timestamp(timestamp: str) -> str:
         dt += timedelta(seconds = 1)
     else:
         dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-    return dt   
-    
-
-
-def get_alias_map(station_id: str, file_type: str) -> typing.Dict[str, str]:
-    #switch to simplified form when alias map stripped out (may have to process exceptions)
-    ftype_alias_map = alias_map.get(file_type) or {}
-    universal_alias_map = ftype_alias_map.get("universal") or {}
-    id_alias_map = ftype_alias_map.get(station_id) or {}
-    #for master variable list in file need to find variable names not in this map and use reflexive
-    file_alias_map = {**universal_alias_map, **id_alias_map}
-    return file_alias_map
-
+    return dt
 
 
 def get_station_files_from_api(station_id: str, date: str):
@@ -195,7 +183,7 @@ def get_station_files_from_api(station_id: str, date: str):
     if(res.status_code == 200):
         files = res.json()
     else:
-        err_logger.error(f"An error occurred while listing data files for station: {station_id}, date: {dstr}, code: {res.status_code}")
+        err_logger.error(f"An error occurred while listing data files for station: {station_id}, date: {date}, code: {res.status_code}")
     return files
 
 
@@ -230,11 +218,13 @@ def get_data_from_file(station_id, file, start_date, end_date):
         decoded = f.read().decode()
         text = StringIO(decoded)
         reader = csv.reader(text)
-        #get the file type from the first header line (last col)
-        #this will be removed when alias maps are combined
-        file_type = next(reader)[-1]
+        #get the version the file uses
+        version = next(reader)[5]
         #get the alias map for the file based on the station id and file type
-        file_alias_map = get_alias_map(station_id, file_type)
+        file_alias_map = alias_map.get(version)
+        if file_alias_map is None:
+            info_logger.info(f"Warning: No alias map found for logger version {version} found in file {file}. Variable names will be used directly.")
+            file_alias_map = {}
         #second line has variable names
         #strip out timestamp and id columns
         variables = next(reader)[2:]
@@ -381,7 +371,7 @@ if __name__ == "__main__":
     alias_map = None
     metadata_map = None
     display_map = None
-    alias_doc = "https://raw.githubusercontent.com/HCDP/loggernet_station_data/main/json_data/aliases.json"
+    alias_doc = "https://raw.githubusercontent.com/HCDP/loggernet_station_data/main/json_data/versions.json"
     metadata_doc = "https://raw.githubusercontent.com/HCDP/loggernet_station_data/main/json_data/metadata.json"
     display_doc = "https://raw.githubusercontent.com/HCDP/loggernet_station_data/main/json_data/display.json"
     try:
