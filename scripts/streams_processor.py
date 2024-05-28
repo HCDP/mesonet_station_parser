@@ -245,7 +245,7 @@ def get_data_from_file(station_id, file, start_date, end_date):
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
             if dt >= start_date and dt <= end_date:
-                timestamp = dt.isoformat()+"-10:00"
+                timestamp = f"{dt.isoformat()}-10:00"
                 dt_measurements["datetime"] = timestamp
                 row = row[2:]
                 for i in range(len(row)):
