@@ -175,7 +175,7 @@ def parse_timestamp(timestamp: str) -> str:
 
 def get_station_files_from_api(station_id: str, date: str):
     files = []
-    url = f" https://api.hcdp.ikewai.org/raw/list?date={date}&station_id={station_id}&location={location}"
+    url = f"https://api.hcdp.ikewai.org/raw/list?date={date}&station_id={station_id}&location={location}"
     headers = {
         "Authorization": f"Bearer {hcdp_token}"
     }
