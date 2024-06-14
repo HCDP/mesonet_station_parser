@@ -187,7 +187,7 @@ def get_alias_map(station_id: str, file_type: str) -> typing.Dict[str, str]:
 
 def get_station_files_from_api(station_id: str, date: str):
     files = []
-    url = f"https://cistore.its.hawaii.edu/raw/list?date={date}&station_id={station_id}"
+    url = f"https://api.hcdp.ikewai.org/raw/list?date={date}&station_id={station_id}&location={location}"
     headers = {
         "Authorization": f"Bearer {hcdp_token}"
     }
@@ -325,6 +325,7 @@ if __name__ == "__main__":
     parser.add_argument("-ie","--inst_ext", help="Extension for making instrument IDs globally unique.")
     parser.add_argument("-r","--retries", type=int, help="Number of times to retry failed requests")
     parser.add_argument("-lrf","--last_record_file", help="File with last recorded times for stations")
+    parser.add_argument("-l","--location", default="hawaii", help="Mesonet location")
 
     args = parser.parse_args()
 
@@ -340,6 +341,7 @@ if __name__ == "__main__":
     retries = args.retries
     project_id = args.project_id
     num_workers = args.threads
+    location = args.location
     start_date = args.start_date
     if start_date is not None:
         start_date = datetime.fromisoformat(start_date)
