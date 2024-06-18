@@ -393,7 +393,7 @@ if __name__ == "__main__":
         handle_error(e, prepend_msg = "Error retrieving alias json doc:")
     try:
         with urlopen(metadata_doc) as f:
-            metadata_map = json.load(f)
+            metadata_map = json.load(f)[location]
     except Exception as e:
         handle_error(e, prepend_msg = "Error retrieving metadata json doc:")
     try:
