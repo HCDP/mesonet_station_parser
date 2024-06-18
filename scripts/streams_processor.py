@@ -17,6 +17,7 @@ from typing import TypeAlias, Any
 import traceback
 import requests
 from io import StringIO
+from pytz import timezone
 
 
 def dispatch_req(req_funct, retries, *args, pass_exceptions = (), **kwargs):
@@ -170,6 +171,7 @@ def parse_timestamp(timestamp: str) -> str:
         dt += timedelta(seconds = 1)
     else:
         dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+    dt = localtz.localize(dt)
     return dt   
     
 
@@ -218,7 +220,9 @@ def get_station_files(station_id: str, start_date: datetime, end_date: datetime)
 def get_start_time(station_id: str):
     last_report = None
     if last_record_timestamps is None or last_record_timestamps.get(station_id) is None:
-        last_report = datetime.combine(datetime.now(), datetime.min.time())
+        last_report = datetime.now()
+        last_report = localtz.localize(last_report)
+        last_report = datetime.combine(last_report, datetime.min.time())
     else:
         last_report = datetime.fromisoformat(last_record_timestamps[station_id]) + timedelta(seconds = 1)
     return last_report
@@ -255,7 +259,7 @@ def get_data_from_file(station_id, file, start_date, end_date):
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
             if dt >= start_date and dt <= end_date:
-                timestamp = dt.isoformat()+"-10:00"
+                timestamp = dt.isoformat()
                 dt_measurements["datetime"] = timestamp
                 row = row[2:]
                 for i in range(len(row)):
@@ -279,6 +283,7 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
         start_date = get_start_time(station_id)
     if end_date is None:
         end_date = datetime.now()
+        end_date = localtz.localize(end_date)
     station_files = []
     try:
         station_files = get_station_files(station_id, start_date, end_date)
@@ -343,11 +348,21 @@ if __name__ == "__main__":
     num_workers = args.threads
     location = args.location
     start_date = args.start_date
+
+    tz_map = {
+        "hawaii": "Pacific/Honolulu",
+        "american_samoa": "Pacific/Pago_Pago"
+    }
+    #localize timestamps to location
+    localtz = timezone(tz_map[location])
+
     if start_date is not None:
         start_date = datetime.fromisoformat(start_date)
+        start_date = localtz.localize(start_date)
     end_date = args.end_date
     if end_date is not None:
         end_date = datetime.fromisoformat(end_date)
+        end_date = localtz.localize(end_date)
     last_record_file = args.last_record_file
     
     last_record_timestamps = None
