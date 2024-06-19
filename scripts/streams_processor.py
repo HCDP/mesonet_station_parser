@@ -220,12 +220,14 @@ def get_station_files(station_id: str, start_date: datetime, end_date: datetime)
 def get_start_time(station_id: str):
     last_report = None
     if last_record_timestamps is None or last_record_timestamps.get(station_id) is None:
-        last_report = datetime.now()
-        last_report = localtz.localize(last_report)
-        last_report = datetime.combine(last_report, datetime.min.time())
+        last_report = datetime.combine(datetime.now(localtz), datetime.min.time())
     else:
+        #should already be tz aware if written from this program (timestamps in file should have tz offsets)
         last_report = datetime.fromisoformat(last_record_timestamps[station_id]) + timedelta(seconds = 1)
-        last_report = localtz.localize(last_report)
+        #if not tz aware then should be UTC, localize to UTC, then convert to local tz
+        if last_report.tzinfo is None:
+            last_report = timezone("UTC").localize(last_report)
+            last_report = last_report.astimezone(localtz)
     return last_report
 
 
@@ -283,8 +285,7 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
     if start_date is None:
         start_date = get_start_time(station_id)
     if end_date is None:
-        end_date = datetime.now()
-        end_date = localtz.localize(end_date)
+        end_date = datetime.now(localtz)
     station_files = []
     try:
         station_files = get_station_files(station_id, start_date, end_date)
