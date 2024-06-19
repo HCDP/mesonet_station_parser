@@ -225,7 +225,7 @@ def get_start_time(station_id: str):
         last_report = datetime.combine(last_report, datetime.min.time())
     else:
         last_report = datetime.fromisoformat(last_record_timestamps[station_id]) + timedelta(seconds = 1)
-    last_report = localtz.localize(last_report)
+        last_report = localtz.localize(last_report)
     return last_report
 
 
@@ -377,7 +377,7 @@ if __name__ == "__main__":
     file_count = 0
     success = 0
     tapis_client = None
-    existing_var_map = {}   
+    existing_var_map = {}
 
     start_time = time.time()
     
