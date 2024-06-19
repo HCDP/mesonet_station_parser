@@ -197,7 +197,7 @@ def get_station_files_from_api(station_id: str, date: str):
     if(res.status_code == 200):
         files = res.json()
     else:
-        err_logger.error(f"An error occurred while listing data files for station: {station_id}, date: {dstr}, code: {res.status_code}")
+        err_logger.error(f"An error occurred while listing data files for station: {station_id}, date: {date}, code: {res.status_code}")
     return files
 
 
