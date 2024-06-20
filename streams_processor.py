@@ -32,7 +32,6 @@ def dispatch_req(req_funct, retries, *args, pass_exceptions = (), **kwargs):
         else:
             raise
     return res
-    
 
 def setup_logging(verbose: bool) -> None:
     global info_logger
@@ -67,6 +66,9 @@ def handle_error(error: Exception, prepend_msg: str = "error:", exit_code: int =
     if exit_code is not None:
         exit(exit_code)
 
+def get_inst_id(station_id: str) -> str:
+    return f"{project_id}_{station_id}_measurements"
+
 def create_project(owner: str, pi: str) -> None:
     try:
         dispatch_req(tapis_client.streams.get_project, retries, pass_exceptions = (BadRequestError), project_id = project_id)
@@ -77,8 +79,9 @@ def create_project(owner: str, pi: str) -> None:
 def cache_existing_vars(station_id: str) -> None:
     existing_vars = set()
     list_res = []
+    inst_id = get_inst_id(station_id)
     try:
-        list_res = dispatch_req(tapis_client.streams.list_variables, retries, pass_exceptions = (BadRequestError), project_id = project_id, site_id = station_id, inst_id = f"{station_id}{inst_ext}")
+        list_res = dispatch_req(tapis_client.streams.list_variables, retries, pass_exceptions = (BadRequestError), project_id = project_id, site_id = station_id, inst_id = inst_id)
     #list methods return an error if there are no items...
     except BadRequestError:
         pass
@@ -126,9 +129,10 @@ def create_sites_and_instruments() -> None:
             for site_data in site_request_body:
                 station_id = site_data["site_id"]
                 station_name = site_data["site_name"]
+                inst_id = get_inst_id(station_id)
                 instrument_request = {
                     "inst_name": station_name,
-                    "inst_id": f"{station_id}{inst_ext}",
+                    "inst_id": inst_id,
                     "inst_description": f"Station {station_id}, {station_name}"
                 }
                 dispatch_req(tapis_client.streams.create_instrument, retries, project_id = project_id, site_id = station_id, request_body = [instrument_request])
@@ -153,12 +157,14 @@ def create_variables(station_id: str, variables: list[str], display_names: list[
             existing_vars.add(var_id)
     info_logger.info(f"Creating {len(request_body)} variables for station {station_id}.")
     if len(request_body) > 0:
-        dispatch_req(tapis_client.streams.create_variable, retries, project_id = project_id, site_id = station_id, inst_id = f"{station_id}{inst_ext}", request_body = request_body)
+        inst_id = get_inst_id(station_id)
+        dispatch_req(tapis_client.streams.create_variable, retries, project_id = project_id, site_id = station_id, inst_id = inst_id, request_body = request_body)
 
 
 def create_measurements(station_id: str, measurements: list[typing.Dict[str, str]]) -> None:
+    inst_id = get_inst_id(station_id)
     info_logger.info(f"Creating {len(measurements)} blocks of measurements for station {station_id}.")
-    dispatch_req(tapis_client.streams.create_measurement, retries, inst_id = f"{station_id}{inst_ext}", vars = measurements)
+    dispatch_req(tapis_client.streams.create_measurement, retries, inst_id = inst_id, vars = measurements)
 
 
 def parse_timestamp(timestamp: str) -> str:
@@ -329,7 +335,6 @@ if __name__ == "__main__":
     parser.add_argument("-sd","--start_date", help="Optional. An ISO 8601 timestamp indicating the starting time of measurements to ingest. Defaults to the last recorded time for each station.")
     parser.add_argument("-ed","--end_date", help="Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the last recorded time for each station.")
     parser.add_argument("-ht","--hcdp_token", help="Token for accessing the HCDP API.")
-    parser.add_argument("-ie","--inst_ext", help="Extension for making instrument IDs globally unique.")
     parser.add_argument("-r","--retries", type=int, help="Number of times to retry failed requests")
     parser.add_argument("-lrf","--last_record_file", help="File with last recorded times for stations")
     parser.add_argument("-l","--location", default="hawaii", help="Mesonet location")
@@ -341,7 +346,6 @@ if __name__ == "__main__":
     # Set Tapis Tenant and Base URL
     tenant = args.tenant
     base_url = args.tapis_url
-    inst_ext = args.inst_ext
     username = args.username
     password = args.password
     hcdp_token = args.hcdp_token
