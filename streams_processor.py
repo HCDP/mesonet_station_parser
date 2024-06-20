@@ -319,7 +319,13 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
             handle_error(e, f"An error occurred while processing file {file} for station {station_id}", None)
     info_logger.info(f"Completed station {station_id}")
 
-
+auth_t = None
+def tapis_auth():
+    global auth_t
+    tapis_client.get_tokens()
+    #redo auth 2 minutes before expire
+    auth_t = threading.Timer(tapis_client.access_token.original_ttl - 120, tapis_auth)
+    auth_t.start()
 
 if __name__ == "__main__":
     # Argument parser
@@ -390,7 +396,7 @@ if __name__ == "__main__":
         # #Create python Tapis client for user
         tapis_client = Tapis(base_url = base_url, username = username, password = password, account_type = "user", tenant_id = tenant)
         # Generate an Access Token that will be used for all API calls
-        tapis_client.get_tokens()
+        tapis_auth()
 
     except Exception as e:
         handle_error(e, prepend_msg = "Error: Tapis client could not be created -")
@@ -439,6 +445,9 @@ if __name__ == "__main__":
     if last_record_file is not None:
         with open(last_record_file, "w") as f:
             last_record_timestamps = json.dump(last_record_timestamps, f)
+
+    #end auth timer
+    auth_t.cancel()
 
     end_time = time.time()
     exec_time = end_time - start_time
