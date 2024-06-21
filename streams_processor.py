@@ -19,6 +19,9 @@ import requests
 from io import StringIO
 from pytz import timezone
 
+auth_t = None
+last_record_timestamps = None
+record_lock = threading.Lock()
 
 def dispatch_req(req_funct, retries, *args, pass_exceptions = (), **kwargs):
     res = None
@@ -315,11 +318,17 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
                 last_record_timestamps[station_id] = last_timestamp.isoformat()
             success += 1
             info_logger.info(f"Completed processing file {file}")
+            write_record_file()
         except Exception as e:
             handle_error(e, f"An error occurred while processing file {file} for station {station_id}", None)
     info_logger.info(f"Completed station {station_id}")
 
-auth_t = None
+def write_record_file():
+    if last_record_file is not None:
+        with record_lock:
+            with open(last_record_file, "w") as f:
+                json.dump(last_record_timestamps, f)
+
 def tapis_auth():
     global auth_t
     tapis_client.get_tokens()
@@ -377,7 +386,6 @@ if __name__ == "__main__":
         end_date = localtz.localize(end_date)
     last_record_file = args.last_record_file
     
-    last_record_timestamps = None
     if last_record_file is not None:
         try:
             with open(last_record_file) as f:
@@ -441,10 +449,6 @@ if __name__ == "__main__":
             concurrent.futures.wait(station_handlers)
         except Exception as e:
             err_logger.error(traceback.format_exc())
-
-    if last_record_file is not None:
-        with open(last_record_file, "w") as f:
-            last_record_timestamps = json.dump(last_record_timestamps, f)
 
     #end auth timer
     auth_t.cancel()
