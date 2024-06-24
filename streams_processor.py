@@ -271,7 +271,9 @@ def get_data_from_file(station_id, file, start_date, end_date):
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
             print("??????????????????????????????\n")
-            info_logger.info("??????????????????????????????\n")
+            info_logger.info(dt.tzinfo)
+            info_logger.info(start_date.tzinfo)
+            info_logger.info(end_date.tzinfo)
             info_logger.info("!!", dt, start_date, end_date, "\n")
             info_logger.info("!!", dt.tzinfo, start_date.tzinfo, end_date.tzinfo, "\n")
             try:
