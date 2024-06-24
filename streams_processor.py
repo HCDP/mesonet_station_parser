@@ -270,8 +270,8 @@ def get_data_from_file(station_id, file, start_date, end_date):
             dt_measurements = {}
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
-            info_logger.info("!!", dt, start_date, end_date)
-            info_logger.info("!!", dt.tzinfo, start_date.tzinfo, end_date.tzinfo)
+            info_logger.info("!!", dt, start_date, end_date, "\n")
+            info_logger.info("!!", dt.tzinfo, start_date.tzinfo, end_date.tzinfo, "\n")
             if dt >= start_date and dt <= end_date:
                 timestamp = dt.isoformat()
                 dt_measurements["datetime"] = timestamp
