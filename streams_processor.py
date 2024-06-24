@@ -270,15 +270,20 @@ def get_data_from_file(station_id, file, start_date, end_date):
             dt_measurements = {}
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
+            print("??????????????????????????????\n")
+            info_logger.info("??????????????????????????????\n")
             info_logger.info("!!", dt, start_date, end_date, "\n")
             info_logger.info("!!", dt.tzinfo, start_date.tzinfo, end_date.tzinfo, "\n")
-            if dt >= start_date and dt <= end_date:
-                timestamp = dt.isoformat()
-                dt_measurements["datetime"] = timestamp
-                row = row[2:]
-                for i in range(len(row)):
-                    dt_measurements[variables[i]] = row[i]
-                measurements.append(dt_measurements)
+            try:
+                if dt >= start_date and dt <= end_date:
+                    timestamp = dt.isoformat()
+                    dt_measurements["datetime"] = timestamp
+                    row = row[2:]
+                    for i in range(len(row)):
+                        dt_measurements[variables[i]] = row[i]
+                    measurements.append(dt_measurements)
+            except Exception as e:
+                print(e)
         data = {
             "var_ids": variables,
             "display_names": display_names,
