@@ -134,7 +134,7 @@ def create_sites_and_instruments() -> None:
                 station_name = site_data["site_name"]
                 inst_id = get_inst_id(station_id)
                 instrument_request = {
-                    "inst_name": station_name,
+                    "inst_name": inst_id,
                     "inst_id": inst_id,
                     "inst_description": f"Station {station_id}, {station_name}"
                 }
@@ -271,9 +271,6 @@ def get_data_from_file(station_id, file, start_date, end_date):
             dt_measurements = {}
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
-            info_logger.info(dt.tzinfo)
-            info_logger.info(start_date.tzinfo)
-            info_logger.info(end_date.tzinfo)
             if dt >= start_date and dt <= end_date:
                 timestamp = dt.isoformat()
                 dt_measurements["datetime"] = timestamp
