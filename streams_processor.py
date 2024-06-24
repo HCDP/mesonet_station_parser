@@ -230,6 +230,7 @@ def get_start_time(station_id: str):
     last_report = None
     if last_record_timestamps is None or last_record_timestamps.get(station_id) is None:
         last_report = datetime.combine(datetime.now(localtz), datetime.min.time())
+        last_report = localtz.localize(last_report)
     else:
         #should already be tz aware if written from this program (timestamps in file should have tz offsets)
         last_report = datetime.fromisoformat(last_record_timestamps[station_id]) + timedelta(seconds = 1)
@@ -270,22 +271,16 @@ def get_data_from_file(station_id, file, start_date, end_date):
             dt_measurements = {}
             timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
-            print("??????????????????????????????\n")
             info_logger.info(dt.tzinfo)
             info_logger.info(start_date.tzinfo)
             info_logger.info(end_date.tzinfo)
-            info_logger.info("!!", dt, start_date, end_date, "\n")
-            info_logger.info("!!", dt.tzinfo, start_date.tzinfo, end_date.tzinfo, "\n")
-            try:
-                if dt >= start_date and dt <= end_date:
-                    timestamp = dt.isoformat()
-                    dt_measurements["datetime"] = timestamp
-                    row = row[2:]
-                    for i in range(len(row)):
-                        dt_measurements[variables[i]] = row[i]
-                    measurements.append(dt_measurements)
-            except Exception as e:
-                print(e)
+            if dt >= start_date and dt <= end_date:
+                timestamp = dt.isoformat()
+                dt_measurements["datetime"] = timestamp
+                row = row[2:]
+                for i in range(len(row)):
+                    dt_measurements[variables[i]] = row[i]
+                measurements.append(dt_measurements)
         data = {
             "var_ids": variables,
             "display_names": display_names,
@@ -304,7 +299,6 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
         start_date = get_start_time(station_id)
     if end_date is None:
         end_date = datetime.now(localtz)
-    info_logger.info("!!", start_date.tzinfo, end_date.tzinfo)
     station_files = []
     try:
         station_files = get_station_files(station_id, start_date, end_date)
