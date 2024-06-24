@@ -295,7 +295,7 @@ def handle_station(station_id: str, site_and_instrument_handler, start_date = No
         start_date = get_start_time(station_id)
     if end_date is None:
         end_date = datetime.now(localtz)
-    print("!!", start_date.tzinfo, end_date.tzinfo)
+    info_logger.info("!!", start_date.tzinfo, end_date.tzinfo)
     station_files = []
     try:
         station_files = get_station_files(station_id, start_date, end_date)
