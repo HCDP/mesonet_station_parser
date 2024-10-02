@@ -3,7 +3,7 @@ FROM python:3.10
 
 RUN pip install --no-cache-dir pandas tapipy
 
-ADD streams_processor.py /home/tapis/
+ADD processor.py /home/tapis/streams_processor.py
 
 WORKDIR /home/tapis
 
