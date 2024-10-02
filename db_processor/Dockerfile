@@ -7,3 +7,5 @@ ADD processor.py /app
 WORKDIR /app
 
 RUN mkdir /logs
+
+CMD [ "python3", "-u", "-v", "/app/processor.py" ]

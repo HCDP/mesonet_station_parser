@@ -16,11 +16,6 @@ import requests
 from io import StringIO
 from pytz import timezone
 
-tz_map = {
-    "hawaii": "Pacific/Honolulu",
-    "american_samoa": "Pacific/Pago_Pago"
-}
-
 def get_last_timestamp(station_id, cur):
     query = f"""
         SELECT timestamp
@@ -43,22 +38,24 @@ def get_last_timestamp(station_id, cur):
     return last_report
 
 
-def get_station_data(location, cur):
+def get_stations(location, cur):
     if location is not None:
         query = """
-            SELECT station_id, location
-            FROM metadata
-            WHERE location = %s
+            SELECT station_metadata.station_id, station_metadata.location, timezone_map.timezone
+            FROM station_metadata
+            JOIN timezone_map ON station_metadata.location = timezone_map.location
+            WHERE station_metadata.location = %s;
         """
         cur.execute(query, (location,))
     else:
         query = """
-            SELECT station_id, location
-            FROM metadata;
+            SELECT station_metadata.station_id, station_metadata.location, timezone_map.timezone
+            FROM station_metadata
+            JOIN timezone_map ON station_metadata.location = timezone_map.location;
         """
         cur.execute(query)
-    station_data = cur.fetchall()
-    return station_data
+    stations = cur.fetchall()
+    return stations
 
 
 def setup_logging(verbose: bool) -> None:
@@ -173,13 +170,11 @@ def get_measurements_from_file(station_id, file, start_date, end_date, cur):
 
 
 #note start and end date need to be passed as datetime objects
-def handle_station(station_id: str, location: str, site_and_instrument_handler, start_date = None, end_date = None):
+def handle_station(station_id: str, location: str, localtz: str, site_and_instrument_handler, start_date = None, end_date = None):
     global file_count
     global success
     
     #localize timestamps to location
-    #works as location validation for query insertion since will throw an error if invalid
-    localtz = timezone(tz_map[location])
     if start_date is not None:
         start_date = datetime.fromisoformat(start_date)
         start_date = localtz.localize(start_date)
@@ -242,7 +237,7 @@ if __name__ == "__main__":
     parser.add_argument("-th","--threads", type=int, help="Number of threads to use to process the mesonet files in parallel")
     parser.add_argument("-sd","--start_date", help="Optional. An ISO 8601 timestamp indicating the starting time of measurements to ingest. Defaults to the last recorded time for each station.")
     parser.add_argument("-ed","--end_date", help="Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the last recorded time for each station.")
-    parser.add_argument("-l","--location", default="hawaii", help="Mesonet location")
+    parser.add_argument("-l","--location", default="hawaii", help="Optional. The mesonet location to work process.")
 
     args = parser.parse_args()
 
@@ -266,7 +261,7 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    station_data = []
+    stations = []
     with psycopg2.connect(
         host = environ.get["DB_HOST"], 
         port = environ.get("DB_PORT") or "5432", 
@@ -276,14 +271,13 @@ if __name__ == "__main__":
     ) as conn:
         # Open a cursor to perform database operations
         with conn.cursor() as cur:
-            station_data = get_station_data(location, cur)
+            stations = get_stations(location, cur)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         try:
             station_handlers = []
-
-            for station_id, location in station_data:
-                station_handler = executor.submit(handle_station, station_id, location, start_date, end_date)
+            for station_id, location, tz_str in stations:
+                station_handler = executor.submit(handle_station, station_id, location, timezone(tz_str), start_date, end_date)
                 station_handlers.append(station_handler)
             concurrent.futures.wait(station_handlers)
         except Exception as e:
