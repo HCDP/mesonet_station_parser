@@ -6,4 +6,4 @@ ADD processor.py /app
 
 WORKDIR /app
 
-RUN mkdir /home/tapis/logs
+RUN mkdir /logs
