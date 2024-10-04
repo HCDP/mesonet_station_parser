@@ -1,10 +1,10 @@
 
 FROM python:3.10
 
-RUN pip3 install -r requirements.txt
-
 RUN mkdir -p /app
-ADD processor.py /app
+ADD ./* /app
+
+RUN pip3 install -r /app/requirements.txt
 
 WORKDIR /app
 
