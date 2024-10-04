@@ -8,6 +8,6 @@ RUN pip3 install -r /app/requirements.txt
 
 WORKDIR /app
 
-RUN mkdir /logs
+RUN mkdir /app/logs
 
 CMD [ "python3", "-u", "/app/processor.py", "-v" ]
