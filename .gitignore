@@ -6,3 +6,4 @@ var.*
 *.cache
 test.*
 last_record.json
+.env
