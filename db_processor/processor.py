@@ -14,7 +14,7 @@ from typing import TypeAlias, Any
 import traceback
 import requests
 from io import StringIO
-from pytz import timezone
+from pytz import timezone, utc
 import psycopg2
 
 
@@ -151,7 +151,8 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz, 
         for row in reader:
             dt = parse_timestamp(row[0], localtz)
             if dt >= start_date and dt <= end_date:
-                timestamp = dt.isoformat()
+                #convert timestamp back to utc for db storage
+                timestamp = dt.astimezone(utc).isoformat()
                 row = row[2:]
                 for i in range(len(row)):
                     variable = variables[i]
@@ -162,6 +163,7 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz, 
                     
                     #ensure not a duplicate timestamp, some files have dupes
                     if timestamp not in timestamps:
+                        print(timestamp)
                         timestamps.add(timestamp)
                         measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
