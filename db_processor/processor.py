@@ -163,7 +163,6 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz, 
                     
                     #ensure not a duplicate timestamp, some files have dupes
                     if timestamp not in timestamps:
-                        print(timestamp)
                         timestamps.add(timestamp)
                         measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
@@ -233,11 +232,11 @@ if __name__ == "__main__":
     # Argument parser
     parser = argparse.ArgumentParser(prog = "streams_processor.py", description = "Ingest mesonet flat files into the Mesonet database")
 
-    parser.add_argument("-v", "--verbose", action="store_true", help="turn on verbose mode")
-    parser.add_argument("-t","--threads", type=int, help="Number of threads to use to process the mesonet files in parallel")
-    parser.add_argument("-sd","--start_date", help="Optional. An ISO 8601 timestamp indicating the starting time of measurements to ingest. Defaults to the last recorded time for each station.")
-    parser.add_argument("-ed","--end_date", help="Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the last recorded time for each station.")
-    parser.add_argument("-l","--location", default="hawaii", help="Optional. The mesonet location to work process.")
+    parser.add_argument("-v", "--verbose", action=  "store_true", help = "turn on verbose mode")
+    parser.add_argument("-t","--threads", type = int, help = "Number of threads to use to process the mesonet files in parallel")
+    parser.add_argument("-sd","--start_date", help = "Optional. An ISO 8601 timestamp indicating the starting time of measurements to ingest. Defaults to the last recorded time for each station.")
+    parser.add_argument("-ed","--end_date", help = "Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the last recorded time for each station.")
+    parser.add_argument("-l","--location", help = "Optional. The mesonet location to work process.")
 
     args = parser.parse_args()
 
