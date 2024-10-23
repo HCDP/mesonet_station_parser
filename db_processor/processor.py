@@ -154,16 +154,16 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz, 
                 #convert timestamp back to utc for db storage
                 timestamp = dt.astimezone(utc).isoformat()
                 row = row[2:]
-                for i in range(len(row)):
-                    variable = variables[i]
-                    value = row[i]
-                    
-                    # !! TEMP PASS TO FLAG LOGIC !!
-                    flag = 0
-                    
-                    #ensure not a duplicate timestamp, some files have dupes
-                    if timestamp not in timestamps:
-                        timestamps.add(timestamp)
+                #ensure not a duplicate timestamp, some files have dupes
+                if timestamp not in timestamps:
+                    timestamps.add(timestamp)
+                    for i in range(len(row)):
+                        variable = variables[i]
+                        value = row[i]
+                        
+                        # !! TEMP PASS TO FLAG LOGIC !!
+                        flag = 0
+                        
                         measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
 
