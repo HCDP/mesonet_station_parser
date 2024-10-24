@@ -160,11 +160,13 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz, 
                     for i in range(len(row)):
                         variable = variables[i]
                         value = row[i]
+                        #don't record missing values
+                        if value != "NAN":
                         
-                        # !! TEMP PASS TO FLAG LOGIC !!
-                        flag = 0
-                        
-                        measurements.append([station_id, timestamp, variable, version, value, flag])
+                            # !! TEMP PASS TO FLAG LOGIC !!
+                            flag = 0
+                            
+                            measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
 
 
