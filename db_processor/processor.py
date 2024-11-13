@@ -31,12 +31,13 @@ def get_last_timestamp(station_id, location, localtz, cur):
     last_report = None
     if len(res) > 0:
         timestamp = res[0][0]
+        timestamp = timestamp.replace(tzinfo=utc).astimezone(localtz)
         #db entries should be tz aware
         #add one second to last entry to move past entry
         last_report = timestamp + timedelta(seconds = 1)
     else:
         last_report = datetime.combine(datetime.now(localtz), datetime.min.time())
-    last_report = localtz.localize(last_report)
+        last_report = localtz.localize(last_report)
     
     return last_report
 
@@ -132,7 +133,7 @@ def get_station_files(station_id: str, location: str, start_date: datetime, end_
     return files
 
 
-def get_measurements_from_file(station_id, file, start_date, end_date, localtz, cur):
+def get_measurements_from_file(station_id, file, start_date, end_date, localtz):
     timestamps = set()
     measurements = []
     with urlopen(file) as f:
@@ -205,7 +206,7 @@ def handle_station(station_id: str, location: str, localtz: str, start_date = No
             file_count += len(station_files)
             for file in station_files:
                 try:
-                    rows = get_measurements_from_file(station_id, file, start_date, end_date, localtz, cur)
+                    rows = get_measurements_from_file(station_id, file, start_date, end_date, localtz)
                     #skip if no measurements to add
                     if len(rows) > 0:
                         #sanitized (mogrified) row data for query
@@ -237,7 +238,7 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action=  "store_true", help = "turn on verbose mode")
     parser.add_argument("-t","--threads", type = int, help = "Number of threads to use to process the mesonet files in parallel")
     parser.add_argument("-sd","--start_date", help = "Optional. An ISO 8601 timestamp indicating the starting time of measurements to ingest. Defaults to the last recorded time for each station.")
-    parser.add_argument("-ed","--end_date", help = "Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the last recorded time for each station.")
+    parser.add_argument("-ed","--end_date", help = "Optional. An ISO 8601 timestamp indicating the end time of measurements to ingest. Defaults to the current time.")
     parser.add_argument("-l","--location", help = "Optional. The mesonet location to work process.")
 
     args = parser.parse_args()
