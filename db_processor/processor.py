@@ -2,23 +2,53 @@ from datetime import date, timedelta, datetime
 import argparse
 import logging
 from logging import FileHandler
-from os.path import isfile, join, exists
-from os import listdir, environ
+from os import environ
 import time
 import concurrent.futures
-import json
 from urllib.request import urlopen
 import csv
-import typing
-from typing import TypeAlias, Any
 import traceback
 import requests
 from io import StringIO
 from pytz import timezone, utc
 import psycopg2
 
+class DBHandler:
+    def __init__(self, host, port, dbname, user, password):
+        self.__host = host
+        self.__port = port
+        self.__dbname = dbname
+        self.__user = user
+        self.__password = password
+        self.__start()
+    
+    def __start(self):
+        self.__conn = psycopg2.connect(host = self.__host, port = self.__port, dbname = self.__dbname, user = self.__user, password = self.__password)
+        self.__cur = self.__conn.cursor()
+        
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        self.close()
+    
+    def close(self):
+        if not self.__cur.closed:
+            self.__cur.close()
+        if not self.__conn.closed:
+            self.__conn.close()
+            
+    def restart(self):
+        self.close()
+        self.__start()
+        
+    def get_cur(self):
+        return self.__cur
 
-def get_last_timestamp(station_id, location, localtz, cur):
+
+
+
+def get_last_timestamp(station_id: str, location: str, localtz: str, db_handler: DBHandler):
     query = f"""
         SELECT timestamp
         FROM {location}_measurements
@@ -26,8 +56,8 @@ def get_last_timestamp(station_id, location, localtz, cur):
         ORDER BY timestamp DESC
         LIMIT 1;
     """
-    cur.execute(query)
-    res = cur.fetchall()
+    db_handler.get_cur().execute(query)
+    res = db_handler.get_cur().fetchall()
     last_report = None
     if len(res) > 0:
         timestamp = res[0][0]
@@ -125,18 +155,16 @@ def get_station_files(station_id: str, location: str, start_date: datetime, end_
     headers = {
         "Authorization": f"Bearer {token}"
     }
-    res = requests.get(url, headers = headers)
-    if(res.status_code == 200):
-        files = res.json()
-    else:
-        err_logger.error(f"An error occurred while listing data files for station: {station_id}, date: {date}, code: {res.status_code}")
+    res = requests.get(url, headers = headers, timeout = 5)
+    res.raise_for_status()
+    files = res.json()
     return files
 
 
 def get_measurements_from_file(station_id, file, start_date, end_date, localtz):
     timestamps = set()
     measurements = []
-    with urlopen(file) as f:
+    with urlopen(file, timeout = 5) as f:
         decoded = f.read().decode()
         text = StringIO(decoded)
         reader = csv.reader(text)
@@ -169,66 +197,70 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz):
                             
                             measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
+ 
 
+def handle_file(station_id: str, file: str, location: str, localtz: str, start_date: datetime, end_date: datetime, db_handler: DBHandler):
+    rows = handle_retry(get_measurements_from_file, (station_id, file, start_date, end_date, localtz))
+    #skip if no measurements to add
+    if len(rows) > 0:
+        #sanitized (mogrified) row data for query
+        values = ",".join(handle_retry(db_handler.get_cur().mogrify, ("(%s,%s,%s,%s,%s,%s)", row), db_handler.restart).decode('utf-8') for row in rows)
+        query = f"""
+            INSERT INTO {location}_measurements
+            VALUES {values}
+            ON CONFLICT (station_id, timestamp, variable)
+            DO UPDATE SET
+                version = EXCLUDED.version,
+                value = EXCLUDED.value,
+                flag = EXCLUDED.flag;
+        """
+        handle_retry(db_handler.get_cur().execute, (query,), db_handler.restart)
+        
+    info_logger.info(f"Completed processing file {file}")
+
+
+#create generic retry for passed function
+def handle_retry(f, args, failure_handler = None, failure_args = (), retry = 0):
+    time.sleep(retry**3)
+    try:
+        return f(*args)
+    except Exception as e:
+        if retry < 3:
+            err_logger.error(f"{f.__name__} attempt {retry} failed with error: {e}. Retrying...")
+            if failure_handler is not None:
+                failure_handler(*failure_args)
+            return handle_retry(f, args, failure_handler, failure_args, retry + 1)
+        else:
+            raise e
 
 #note start and end date need to be passed as datetime objects
 def handle_station(station_id: str, location: str, localtz: str, start_date = None, end_date = None):
     global file_count
-    global success
-    with psycopg2.connect(
-        host = environ["DB_HOST"], 
-        port = environ.get("DB_PORT") or "5432", 
-        dbname = environ["DB_NAME"], 
-        user = environ["DB_USERNAME"], 
-        password = environ["DB_PASSWORD"]
-    ) as conn:
-        # Open a cursor to perform database operations
-        with conn.cursor() as cur:
+    global successes
+    try:
+        with DBHandler(environ["DB_HOST"], environ.get("DB_PORT") or "5432", environ["DB_NAME"], environ["DB_USERNAME"], environ["DB_PASSWORD"]) as db_handler:
             #localize timestamps to location
             if start_date is not None:
                 start_date = datetime.fromisoformat(start_date)
-                start_date = localtz.localize(start_date)
+                if start_date.tzinfo is None or start_date.tzinfo.utcoffset(start_date) is None:
+                    start_date = localtz.localize(start_date)
             else:
-                start_date = get_last_timestamp(station_id, location, localtz, cur)
-                
+                start_date = handle_retry(get_last_timestamp, (station_id, location, localtz, db_handler), db_handler.restart)
             if end_date is not None:
                 end_date = datetime.fromisoformat(end_date)
-                end_date = localtz.localize(end_date)
+                if end_date.tzinfo is None or end_date.tzinfo.utcoffset(end_date) is None:
+                    end_date = localtz.localize(end_date)
             else:
                 end_date = datetime.now(localtz)
                 
-            station_files = []
-    
-            try:
-                station_files = get_station_files(station_id, location, start_date, end_date)
-            except Exception as e:
-                handle_error(e, f"Unable to retreive files for station {station_id}")
+            station_files = handle_retry(get_station_files, (station_id, location, start_date, end_date))
             file_count += len(station_files)
             for file in station_files:
-                try:
-                    rows = get_measurements_from_file(station_id, file, start_date, end_date, localtz)
-                    #skip if no measurements to add
-                    if len(rows) > 0:
-                        #sanitized (mogrified) row data for query
-                        values = ",".join(cur.mogrify("(%s,%s,%s,%s,%s,%s)", row).decode('utf-8') for row in rows)                            
-                        cur.execute(f"""
-                            INSERT INTO {location}_measurements
-                            VALUES {values}
-                            ON CONFLICT (station_id, timestamp, variable)
-                            DO UPDATE SET
-                                version = EXCLUDED.version,
-                                value = EXCLUDED.value,
-                                flag = EXCLUDED.flag;
-                        """)
-
-                    success += 1
-                    info_logger.info(f"Completed processing file {file}")
-
-                except Exception as e:
-                    handle_error(e, f"An error occurred while processing file {file} for station {station_id}")
+                handle_file(station_id, file, location, localtz, start_date, end_date, db_handler)
+                successes += 1
+    except Exception as e:
+        handle_error(e, f"Processing station {station_id} failed.")
     info_logger.info(f"Completed station {station_id}")
-
-
 
 
 if __name__ == "__main__":
@@ -251,21 +283,14 @@ if __name__ == "__main__":
     end_date = args.end_date
 
     file_count = 0
-    success = 0
+    successes = 0
 
     start_time = time.time()
 
     stations = []
-    with psycopg2.connect(
-        host = environ["DB_HOST"], 
-        port = environ.get("DB_PORT") or "5432", 
-        dbname = environ["DB_NAME"], 
-        user = environ["DB_USERNAME"], 
-        password = environ["DB_PASSWORD"]
-    ) as conn:
-        # Open a cursor to perform database operations
-        with conn.cursor() as cur:
-            stations = get_stations(location, cur)
+    with DBHandler(environ["DB_HOST"], environ.get("DB_PORT") or "5432", environ["DB_NAME"], environ["DB_USERNAME"], environ["DB_PASSWORD"]) as db_handler:
+        stations = handle_retry(get_stations, (location, db_handler.get_cur()), db_handler.restart)
+            
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
         try:
             station_handlers = []
@@ -281,4 +306,4 @@ if __name__ == "__main__":
     #cut to two decimal places
     exec_time = round(exec_time, 2)
 
-    info_logger.info(f"Files parsing complete: success: {success}, failed: {file_count - success}, time: {exec_time} seconds")
+    info_logger.info(f"Files parsing complete: successes: {successes}, failures: {file_count - successes}, time: {exec_time} seconds")
