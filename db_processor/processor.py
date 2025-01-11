@@ -33,9 +33,11 @@ class DBHandler:
         self.close()
     
     def close(self):
+        #apparently psycopg2 cursor.closed method does not work, so just use try catch
         if not self.__cur.closed:
             self.__cur.close()
         if not self.__conn.closed:
+            self.__conn.commit()
             self.__conn.close()
             
     def restart(self):
@@ -197,25 +199,32 @@ def get_measurements_from_file(station_id, file, start_date, end_date, localtz):
                             
                             measurements.append([station_id, timestamp, variable, version, value, flag])
     return measurements
- 
+
+
+def insert_rows(db_handler, rows, location):
+    cur = db_handler.get_cur()
+    #sanitized (mogrified) row data for query
+    values = ",".join(cur.mogrify("(%s,%s,%s,%s,%s,%s)", row).decode('utf-8') for row in rows)
+    query = f"""
+        INSERT INTO {location}_measurements
+        VALUES {values}
+        ON CONFLICT (station_id, timestamp, variable)
+        DO UPDATE SET
+            version = EXCLUDED.version,
+            value = EXCLUDED.value,
+            flag = EXCLUDED.flag;
+    """
+    
+    cur.execute(query)
+    info_logger.info(cur.statusmessage)
+
 
 def handle_file(station_id: str, file: str, location: str, localtz: str, start_date: datetime, end_date: datetime, db_handler: DBHandler):
     rows = handle_retry(get_measurements_from_file, (station_id, file, start_date, end_date, localtz))
     #skip if no measurements to add
     if len(rows) > 0:
-        #sanitized (mogrified) row data for query
-        values = ",".join(handle_retry(db_handler.get_cur().mogrify, ("(%s,%s,%s,%s,%s,%s)", row), db_handler.restart).decode('utf-8') for row in rows)
-        query = f"""
-            INSERT INTO {location}_measurements
-            VALUES {values}
-            ON CONFLICT (station_id, timestamp, variable)
-            DO UPDATE SET
-                version = EXCLUDED.version,
-                value = EXCLUDED.value,
-                flag = EXCLUDED.flag;
-        """
-        handle_retry(db_handler.get_cur().execute, (query,), db_handler.restart)
-        
+        rows = handle_retry(get_measurements_from_file, (station_id, file, start_date, end_date, localtz))
+        handle_retry(insert_rows, (db_handler, rows, location), db_handler.restart)
     info_logger.info(f"Completed processing file {file}")
 
 
@@ -254,6 +263,7 @@ def handle_station(station_id: str, location: str, localtz: str, start_date = No
                 end_date = datetime.now(localtz)
                 
             station_files = handle_retry(get_station_files, (station_id, location, start_date, end_date))
+            
             file_count += len(station_files)
             for file in station_files:
                 handle_file(station_id, file, location, localtz, start_date, end_date, db_handler)
