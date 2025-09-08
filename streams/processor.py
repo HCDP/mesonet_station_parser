@@ -269,7 +269,6 @@ def get_data_from_file(station_id, file, start_date, end_date):
         #get measurements
         for row in reader:
             dt_measurements = {}
-            timestamp = parse_timestamp(row[0])
             dt = parse_timestamp(row[0])
             if dt >= start_date and dt <= end_date:
                 timestamp = dt.isoformat()
