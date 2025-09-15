@@ -118,7 +118,13 @@ def get_measurements_from_file(file: str, start_date: datetime = None, end_date:
                             # !! TEMP PASS TO FLAG LOGIC !!
                             flag = 0
                             
-                            measurements.append([station_id, timestamp, variable, version, value, flag])
+                            value_d = None
+                            try:
+                                value_d = float(value)
+                            except ValueError:
+                                pass
+                            
+                            measurements.append([station_id, timestamp, variable, version, value_d, value, flag])
     return measurements
     
 
