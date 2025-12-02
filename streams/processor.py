@@ -1,11 +1,9 @@
-from datetime import date, timedelta, datetime
+from datetime import timedelta, datetime
 import argparse
-from tapipy.tapis import Tapis, TapisResult
+from tapipy.tapis import Tapis
 from tapipy.errors import BadRequestError
 import logging
 from logging import FileHandler
-from os.path import isfile, join, exists
-from os import listdir
 import time
 import concurrent.futures
 import threading
@@ -13,7 +11,6 @@ import json
 from urllib.request import urlopen
 import csv
 import typing
-from typing import TypeAlias, Any
 import traceback
 import requests
 from io import StringIO

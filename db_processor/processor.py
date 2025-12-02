@@ -151,6 +151,7 @@ def handle_file_url(file: str, location: str, start_date: datetime = None, end_d
     #skip if no measurements to add
     if len(rows) > 0:
         insert_rows(rows, location)
+        time.sleep(1)
     info_logger.info(f"Completed processing file {file}")
     
 
