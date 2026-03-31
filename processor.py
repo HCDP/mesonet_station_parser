@@ -130,7 +130,7 @@ def get_measurements_from_file(file: str, start_date: datetime = None, end_date:
 
 def insert_rows(rows, location):
     modified = 0
-    chunk_size = 10000
+    chunk_size = 2000
     chunks = [rows[i:i + chunk_size] for i in range(0, len(rows), chunk_size)]
     for chunk in chunks:
         ep = f"{hcdp_api}/mesonet/db/measurements/insert"
