@@ -74,7 +74,7 @@ def parse_timestamp(timestamp: str, localtz) -> str:
 
 def get_station_timezone(station_id: str):
     ep = f"{hcdp_api}/mesonet/db/stations?station_ids={station_id}"
-    res = requests.get(ep, headers = headers)
+    res = requests.get(ep, headers = headers, timeout = 120)
     res.raise_for_status()
     tz = res.json()[0]["timezone"]
     station_timezone = timezone(tz)
@@ -140,7 +140,7 @@ def insert_rows(rows, location):
             "data": chunk
         }
         
-        res = requests.put(ep, json = body, headers = headers)
+        res = requests.put(ep, json = body, headers = headers, timeout = 120)
         res.raise_for_status()
         modified += res.json()["modified"]
     info_logger.info(f"Successfully wrote {modified} values.")
@@ -150,7 +150,7 @@ def handle_file_url(file: str, location: str, start_date: datetime = None, end_d
     rows = handle_retry(get_measurements_from_file, (file, start_date, end_date))
     #skip if no measurements to add
     if len(rows) > 0:
-        insert_rows(rows, location)
+        handle_retry(insert_rows, (rows, location))
         time.sleep(1)
     info_logger.info(f"Completed processing file {file}")
     
@@ -172,7 +172,7 @@ def process_range(num_workers: int, start_date: datetime, end_date: datetime = N
                 for file in files:
                     file_handler = executor.submit(handle_file_url, file, location, start_date, end_date)
                     file_handlers[file] = file_handler
-            concurrent.futures.wait(file_handlers.values(), 3600)
+            concurrent.futures.wait(file_handlers.values(), 1800)
         except Exception:
             err_logger.error(traceback.format_exc())
     return file_handlers
@@ -187,7 +187,7 @@ def process_dirty(num_workers: int):
             for file in files:
                 file_handler = executor.submit(handle_dirty_file, file)
                 file_handlers[file] = file_handler
-            concurrent.futures.wait(file_handlers.values(), 3600)
+            concurrent.futures.wait(file_handlers.values(), 1800)
         except Exception:
             err_logger.error(traceback.format_exc())
     return file_handlers
@@ -200,7 +200,7 @@ def handle_retry(f, args, failure_handler = None, failure_args = (), retry = 0):
         return f(*args)
     except Exception as e:
         if retry < 3:
-            err_logger.error(f"{f.__name__} attempt {retry} failed with error: {e}. Retrying...")
+            err_logger.warning(f"{f.__name__} attempt {retry} failed with error: {e}. Retrying...")
             if failure_handler is not None:
                 failure_handler(*failure_args)
             return handle_retry(f, args, failure_handler, failure_args, retry + 1)
@@ -217,7 +217,7 @@ def get_files_in_range(location: str, start_date: datetime, end_date: datetime =
     if end_date is None:
         end_date = datetime.now()
     url = f"{hcdp_api}/raw/list?startDate={start_date.strftime('%Y-%m-%d')}&endDate={end_date.strftime('%Y-%m-%d')}&location={location}"
-    res = requests.get(url, headers = headers, timeout = 5)
+    res = requests.get(url, headers = headers, timeout = 120)
     res.raise_for_status()
     files = res.json()
     return files
@@ -225,12 +225,12 @@ def get_files_in_range(location: str, start_date: datetime, end_date: datetime =
 
 def clean_file(file):
     ep = f"{hcdp_api}/mesonet/dirtyFiles/remove/{file}"
-    requests.delete(ep, headers = headers)
+    requests.delete(ep, headers = headers, timeout = 120)
 
 
 def get_dirty_files():
     ep = f"{hcdp_api}/mesonet/dirtyFiles/list"
-    res = requests.get(ep, headers = headers)
+    res = requests.get(ep, headers = headers, timeout = 120)
     res.raise_for_status()
     files = res.json()
     return files
@@ -238,7 +238,7 @@ def get_dirty_files():
 
 def api_process_dirty():
     ep = f"{hcdp_api}/mesonet/dirtyFiles/process"
-    res = requests.post(ep, headers = headers)
+    res = requests.post(ep, headers = headers, timeout = 120)
     res.raise_for_status()
 
 
@@ -280,7 +280,7 @@ def main():
     for file in file_handlers:
         future = file_handlers[file]
         try:
-            future.result()
+            future.result(timeout = 0)
             successes += 1
         except Exception as e:
             err_logger.error(f"Processing {file} failed. Error: ")
