@@ -56,18 +56,17 @@ def handle_error(error: Exception, prepend_msg: str = "error:", rethrow: bool = 
 
 
 
-
-
-def parse_timestamp(timestamp: str, localtz) -> str:
-    measurement_time = timestamp.split(" ")
+def parse_timestamp(timestamp: str, localtz) -> datetime:
+    timestamp = timestamp.replace(" ", "T")
+    dt_split = timestamp.split("T")
     dt = None
     #handle 24:00:00 formatting for midnight
-    if int(measurement_time[1].split(":")[0]) > 23:
-        converted_timestamp = measurement_time[0] + " 23:59:59"
-        dt = datetime.strptime(converted_timestamp, '%Y-%m-%d %H:%M:%S')
+    if int(dt_split[1].split(":")[0]) > 23:
+        converted_timestamp = dt_split[0] + "T23:59:59"
+        dt = datetime.fromisoformat(converted_timestamp)
         dt += timedelta(seconds = 1)
     else:
-        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        dt = datetime.fromisoformat(timestamp)
     dt = localtz.localize(dt)
     return dt
 
@@ -81,7 +80,7 @@ def get_station_timezone(station_id: str):
     return station_timezone
 
 
-def get_measurements_from_file(file: str, start_date: datetime = None, end_date: datetime = None):
+def get_measurements_from_file(file: str, start_date: datetime | None = None, end_date: datetime | None = None):
     timestamps = set()
     measurements = []
     with urlopen(file, timeout = 5) as f:
@@ -102,7 +101,7 @@ def get_measurements_from_file(file: str, start_date: datetime = None, end_date:
         #get measurements
         for row in reader:
             dt = parse_timestamp(row[0], station_timezone)
-            if (start_date is None or dt >= start_date) and (end_date is None or dt <= end_date):
+            if(start_date is None or dt >= start_date) and (end_date is None or dt <= end_date):
                 #convert timestamp back to utc for db storage
                 timestamp = dt.astimezone(utc).isoformat()
                 row = row[2:]
@@ -146,7 +145,7 @@ def insert_rows(rows, location):
     info_logger.info(f"Successfully wrote {modified} values.")
     
 
-def handle_file_url(file: str, location: str, start_date: datetime = None, end_date: datetime = None):
+def handle_file_url(file: str, location: str, start_date: datetime | None = None, end_date: datetime | None = None):
     rows = handle_retry(get_measurements_from_file, (file, start_date, end_date))
     #skip if no measurements to add
     if len(rows) > 0:
@@ -162,7 +161,7 @@ def handle_dirty_file(file: str):
     clean_file(file)
     
 
-def process_range(num_workers: int, start_date: datetime, end_date: datetime = None):
+def process_range(num_workers: int, start_date: datetime, end_date: datetime | None = None):
     files = []
     file_handlers = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers = num_workers) as executor:
@@ -212,7 +211,7 @@ def get_retrieval_url(file):
     return f"{hcdp_api}/raw/download?p={file}"
 
 
-def get_files_in_range(location: str, start_date: datetime, end_date: datetime = None):
+def get_files_in_range(location: str, start_date: datetime, end_date: datetime | None = None):
     files = []
     if end_date is None:
         end_date = datetime.now()
@@ -255,7 +254,7 @@ def main():
 
     setup_logging(args.verbose)
     
-    num_workers = args.threads or cpu_count()
+    num_workers = args.threads or cpu_count() or 1
     start_date = args.start_date
     if start_date is not None:
         start_date = datetime.fromisoformat(start_date)
