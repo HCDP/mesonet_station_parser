@@ -54,15 +54,24 @@ def handle_error(error: Exception, prepend_msg: str = "error:", rethrow: bool = 
         raise error
         
 
+def clean_timestamp(timestamp: str):
+    timestamp = timestamp.replace(" ", "T")  
+    if "." in timestamp:
+        timestamp_core, fractional_second = timestamp.split(".")
+        # pad fractional second to 6 digits to comply with fromisoformat
+        fraction = fractional_second.ljust(6, "0") 
+        timestamp = f"{timestamp_core}.{fraction}"
+    return timestamp
 
 
 def parse_timestamp(timestamp: str, localtz) -> datetime:
-    timestamp = timestamp.replace(" ", "T")
-    dt_split = timestamp.split("T")
+    # clean the timestamp so it is compliant with the expected ISO 8601 format
+    timestamp = clean_timestamp(timestamp)
+    date_part, time_part = timestamp.split("T")
     dt = None
     #handle 24:00:00 formatting for midnight
-    if int(dt_split[1].split(":")[0]) > 23:
-        converted_timestamp = dt_split[0] + "T23:59:59"
+    if int(time_part.split(":")[0]) > 23:
+        converted_timestamp = date_part + "T23:59:59"
         dt = datetime.fromisoformat(converted_timestamp)
         dt += timedelta(seconds = 1)
     else:
