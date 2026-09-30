@@ -10,4 +10,4 @@ WORKDIR /app
 
 RUN mkdir /app/logs
 
-CMD [ "python3", "-u", "/app/processor.py", "-v", "-t", "1" ]
+CMD [ "python3", "-u", "/app/processor.py", "-v" ]
