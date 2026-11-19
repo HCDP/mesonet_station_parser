@@ -122,17 +122,13 @@ def get_measurements_from_file(file: str, start_date: datetime | None = None, en
                         value = row[i]
                         #don't record missing values
                         if value != "NAN":
-                        
-                            # !! TEMP PASS TO FLAG LOGIC !!
-                            flag = 0
-                            
                             value_d = None
                             try:
                                 value_d = float(value)
                             except ValueError:
                                 pass
                             
-                            measurements.append([station_id, timestamp, variable, version, value_d, value, flag])
+                            measurements.append([station_id, timestamp, variable, version, value_d, value])
     return measurements
     
 
