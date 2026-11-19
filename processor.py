@@ -145,6 +145,10 @@ def insert_rows(rows, location):
         }
         
         res = requests.put(ep, json = body, headers = headers, timeout = 120)
+        
+        if not res.ok:
+            err_logger.error(f"API Error Response: {res.text}")
+            
         res.raise_for_status()
         modified += res.json()["modified"]
     info_logger.info(f"Successfully wrote {modified} values.")
